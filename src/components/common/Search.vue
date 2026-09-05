@@ -301,6 +301,8 @@ onBeforeUnmount(() => {
   margin: 0;
 
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #c7cbd1 transparent;
   list-style: none;
 
   background: #fff;
@@ -311,6 +313,19 @@ onBeforeUnmount(() => {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
 
   z-index: 500;
+}
+
+.search-results::-webkit-scrollbar {
+  width: 6px;
+}
+
+.search-results::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.search-results::-webkit-scrollbar-thumb {
+  background: #c7cbd1;
+  border-radius: 999px;
 }
 
 .search-result-item {

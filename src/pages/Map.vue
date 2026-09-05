@@ -184,6 +184,17 @@ onMounted(async () => {
 
   try {
     await placeStore.fetchPlaces()
+
+    if (!placeStore.selectedPlace) {
+      const initialPlace = placeStore.places.find(
+        (place) => place.type === 'POKEMON_VENDING' && place.branchName?.trim() === '홍대점',
+      )
+
+      if (initialPlace) {
+        placeStore.selectPlace(initialPlace)
+      }
+    }
+
     await loadNaverMapScript()
 
     initMap()

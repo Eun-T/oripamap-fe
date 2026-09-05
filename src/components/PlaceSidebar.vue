@@ -57,6 +57,11 @@ defineEmits(['close'])
   overflow-x: hidden;
   scroll-behavior: smooth;
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.4s ease;
+}
+
+.place-sidebar:hover .place-content {
   scrollbar-color: #c7cbd1 transparent;
 }
 
@@ -79,7 +84,12 @@ defineEmits(['close'])
 }
 
 .place-content::-webkit-scrollbar-thumb {
-  background: #c7cbd1;
+  background: transparent;
   border-radius: 999px;
+  transition: background-color 0.4s ease;
+}
+
+.place-sidebar:hover .place-content::-webkit-scrollbar-thumb {
+  background: #c7cbd1;
 }
 </style>
