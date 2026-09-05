@@ -44,6 +44,14 @@
     </div>
     <p v-else class="comment-content">{{ comment.content }}</p>
 
+    <img
+      v-if="comment.parentCommentId == null && comment.imageUrl"
+      class="comment-image"
+      :src="comment.imageUrl"
+      :alt="`${comment.nickname}님의 댓글 사진`"
+      loading="lazy"
+    />
+
     <div class="comment-footer">
       <span class="comment-date">{{ formatCommentDate(comment.createdAt) }}</span>
       <button
@@ -153,7 +161,16 @@ const emit = defineEmits([
 const updateEditedContent = (event) => emit('update:editedContent', event.target.value)
 const formatCommentDate = (date) => {
   if (!date) return ''
-  const [year, month, day, hour, minute] = date
+
+  if (Array.isArray(date)) {
+    const [year, month, day, hour, minute] = date
+    return `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+  }
+
+  const parts = String(date).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
+  if (!parts) return String(date)
+
+  const [, year, month, day, hour, minute] = parts
   return `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
 }
 </script>
@@ -238,6 +255,14 @@ const formatCommentDate = (date) => {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+}
+.comment-image {
+  display: block;
+  width: min(100%, 200px);
+  max-height: 200px;
+  margin: 10px 0;
+  border-radius: 10px;
+  object-fit: cover;
 }
 .comment-footer {
   display: flex;

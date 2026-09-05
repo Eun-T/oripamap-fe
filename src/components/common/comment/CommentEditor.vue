@@ -38,7 +38,7 @@
         ref="imageInput"
         class="hidden-file-input"
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png"
         @change="handleImageChange"
       />
       <button
@@ -80,6 +80,9 @@ const commentTextarea = ref(null)
 const imageInput = ref(null)
 const selectedImage = ref(null)
 const previewImage = ref(null)
+const MAX_FILE_SIZE = 5 * 1024 * 1024
+const MAX_PIXEL_COUNT = 20_000_000
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png']
 
 const openImagePicker = () => {
   if (!props.user) return
@@ -90,13 +93,49 @@ const removeImage = () => {
   selectedImage.value = null
   previewImage.value = null
 }
-const handleImageChange = (event) => {
+const getImageDimensions = (url) =>
+  new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight })
+    image.onerror = reject
+    image.src = url
+  })
+
+const handleImageChange = async (event) => {
+  const input = event.target
   const file = event.target.files?.[0]
   if (!file) return
-  removeImage()
-  selectedImage.value = file
-  previewImage.value = URL.createObjectURL(file)
-  event.target.value = ''
+
+  input.value = ''
+
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    alert('JPG 또는 PNG 이미지만 첨부할 수 있습니다.')
+    return
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    alert('이미지 크기는 5MB 이하여야 합니다.')
+    return
+  }
+
+  const objectUrl = URL.createObjectURL(file)
+
+  try {
+    const { width, height } = await getImageDimensions(objectUrl)
+
+    if (width * height > MAX_PIXEL_COUNT) {
+      URL.revokeObjectURL(objectUrl)
+      alert('이미지는 최대 2,000만 픽셀까지 첨부할 수 있습니다.')
+      return
+    }
+
+    removeImage()
+    selectedImage.value = file
+    previewImage.value = objectUrl
+  } catch {
+    URL.revokeObjectURL(objectUrl)
+    alert('이미지 파일을 읽을 수 없습니다.')
+  }
 }
 const resizeTextarea = () => {
   if (!commentTextarea.value) return

@@ -2,17 +2,14 @@
   <div class="community-section">
     <div class="section-divider"></div>
 
-    <VisitorPhotoSection />
+    <VisitorPhotoSection ref="visitorPhotoSection" :place-id="placeId" />
 
     <div class="section-divider"></div>
 
     <!-- =========================
          댓글
     ========================== -->
-    <section
-      ref="commentSection"
-      class="comment-section"
-    >
+    <section ref="commentSection" class="comment-section">
       <div class="comment-title">
         댓글
         <span>{{ comments.length }}</span>
@@ -29,12 +26,7 @@
       />
 
       <!-- 댓글 없음 -->
-      <div
-        v-if="comments.length === 0"
-        class="comment-empty"
-      >
-        아직 댓글이 없습니다.
-      </div>
+      <div v-if="comments.length === 0" class="comment-empty">아직 댓글이 없습니다.</div>
 
       <!-- =========================
            원댓글 목록
@@ -63,17 +55,10 @@
   </div>
 </template>
 
-
 <script setup>
 import { ref, watch } from 'vue'
 
-import {
-  getComments,
-  addComment,
-  deleteComment,
-  updateComment,
-  addReply,
-} from '@/api/commentApi'
+import { getComments, addComment, deleteComment, updateComment, addReply } from '@/api/commentApi'
 
 import { useAuthStore } from '@/stores/authStore'
 import { shareContent } from '@/utils/shareContent'
@@ -90,12 +75,15 @@ const props = defineProps({
   },
 })
 
+const emit = defineEmits(['photos-changed'])
+
 const comments = ref([])
 
 const commentLoading = ref(false)
 
 const commentSection = ref(null)
 const commentEditor = ref(null)
+const visitorPhotoSection = ref(null)
 
 const openedMenuId = ref(null)
 
@@ -115,8 +103,7 @@ const loadComments = async () => {
   if (!props.placeId) return
 
   try {
-    comments.value =
-      await getComments(props.placeId)
+    comments.value = await getComments(props.placeId)
   } catch (error) {
     console.error('댓글 조회 실패:', error)
     comments.value = []
@@ -127,7 +114,7 @@ const loadComments = async () => {
    댓글 작성
 ========================= */
 
-const submitComment = async (content) => {
+const submitComment = async (content, file) => {
   if (!authStore.user) return
 
   if (!content) {
@@ -135,23 +122,18 @@ const submitComment = async (content) => {
     return
   }
 
-  if (
-    !props.placeId ||
-    commentLoading.value
-  ) {
+  if (!props.placeId || commentLoading.value) {
     return
   }
 
   try {
     commentLoading.value = true
 
-    await addComment(
-      props.placeId,
-      content,
-    )
+    await addComment(props.placeId, content, file)
 
     await commentEditor.value?.resetEditor()
-    await loadComments()
+    await Promise.all([loadComments(), visitorPhotoSection.value?.refresh()])
+    emit('photos-changed')
   } catch (error) {
     console.error('댓글 작성 실패:', error)
   } finally {
@@ -168,7 +150,8 @@ const handleDelete = async (commentId) => {
 
   try {
     await deleteComment(commentId)
-    await loadComments()
+    await Promise.all([loadComments(), visitorPhotoSection.value?.refresh()])
+    emit('photos-changed')
   } catch (error) {
     console.error('댓글 삭제 실패:', error)
   }
@@ -179,10 +162,7 @@ const handleDelete = async (commentId) => {
 ========================= */
 
 const toggleCommentMenu = (commentId) => {
-  openedMenuId.value =
-    openedMenuId.value === commentId
-      ? null
-      : commentId
+  openedMenuId.value = openedMenuId.value === commentId ? null : commentId
 }
 
 /* =========================
@@ -201,8 +181,7 @@ const editComment = (comment) => {
 ========================= */
 
 const saveEditedComment = async (commentId) => {
-  const content =
-    editedContent.value.trim()
+  const content = editedContent.value.trim()
 
   if (!content) {
     alert('댓글 내용을 입력해주세요.')
@@ -210,10 +189,7 @@ const saveEditedComment = async (commentId) => {
   }
 
   try {
-    await updateComment(
-      commentId,
-      content,
-    )
+    await updateComment(commentId, content)
 
     editingCommentId.value = null
     editedContent.value = ''
@@ -275,10 +251,7 @@ const submitReply = async (commentId, content) => {
   try {
     replyLoading.value = true
 
-    await addReply(
-      commentId,
-      content,
-    )
+    await addReply(commentId, content)
 
     cancelReply()
 
@@ -304,10 +277,8 @@ const shareComment = (comment) =>
   shareContent({
     title: '오리파맵 댓글',
     text: comment.content,
-    url:
-      `${window.location.href}#comment-${comment.id}`,
-    successMessage:
-      '댓글 링크가 복사되었습니다.',
+    url: `${window.location.href}#comment-${comment.id}`,
+    successMessage: '댓글 링크가 복사되었습니다.',
   })
 
 /* =========================
@@ -355,7 +326,6 @@ watch(
   },
   { immediate: true },
 )
-
 </script>
 
 <style scoped>
@@ -431,6 +401,5 @@ watch(
   .comment-title {
     font-size: 16px;
   }
-
 }
 </style>
