@@ -41,21 +41,19 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { usePlaceStore } from '@/stores/placeStore'
 import LoginButton from '@/components/common/LoginButton.vue'
 
 const placeStore = usePlaceStore()
 
-const activeMenu = ref('map')
+const activeMenu = computed(() => ({ ALL: 'map', ORIPA: 'oripa', POKEMON_VENDING: 'vending' })[placeStore.selectedType])
 
 const goHome = () => {
-  activeMenu.value = 'map'
   placeStore.setType('ALL')
 }
 
 const selectMenu = (menu) => {
-  activeMenu.value = menu
 
   if (menu === 'map') {
     placeStore.setType('ALL')
@@ -162,5 +160,31 @@ const emit = defineEmits(['open-login'])
 
 .nav-item.active {
   color: #635bff;
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: var(--mobile-header-height);
+    padding: env(safe-area-inset-top, 0px) max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+    gap: 8px;
+  }
+  .header-left { min-width: 0; }
+  .brand { gap: 4px; }
+  .brand-name { font-size: 16px; }
+  .brand-mark { width: 24px; font-size: 22px; }
+  .main-nav { display: none; }
+  :deep(.header-login-area) { min-width: 0; }
+  :deep(.user-area) { min-width: 0; }
+  :deep(.login-button) {
+    max-width: 145px;
+    padding: 0 10px;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 </style>

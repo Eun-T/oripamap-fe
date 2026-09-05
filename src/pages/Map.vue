@@ -7,10 +7,11 @@
         <Search />
       </div>
 
+      <Transition name="auth-slide">
       <BaseModal v-if="authModal" @close="authModal = null">
         <template #header>
           <div class="auth-header">
-            <template v-if="authModal === 'login'">
+            <template v-if="displayedAuthModal === 'login'">
               <h1>로그인</h1>
               <p>오리파맵을 더 편리하게 이용해보세요.</p>
             </template>
@@ -23,13 +24,14 @@
         </template>
 
         <LoginForm
-          v-if="authModal === 'login'"
+          v-if="displayedAuthModal === 'login'"
           @close="authModal = null"
           @open-signup="authModal = 'signup'"
         />
 
         <SignupForm v-else @open-login="authModal = 'login'" />
       </BaseModal>
+      </Transition>
 
       <PlaceSidebar :place="placeStore.selectedPlace" @close="placeStore.clearSelectedPlace" />
 
@@ -37,11 +39,18 @@
 
       <div v-else id="map"></div>
     </div>
+    <section v-if="isSettingsOpen" class="mobile-settings" aria-label="설정">
+      <button type="button" @click="isSettingsOpen = false" aria-label="설정 닫기">닫기</button>
+      <h2>설정</h2>
+      <p>설정 기능을 준비 중입니다.</p>
+    </section>
+    <BottomNavigation :active-tab="activeMobileTab" @select="selectMobileTab" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import BottomNavigation from '@/components/common/BottomNavigation.vue'
 import { loadNaverMapScript } from '@/utils/naverMapLoader'
 import PlaceSidebar from '@/components/PlaceSidebar.vue'
 import Search from '@/components/common/Search.vue'
@@ -58,9 +67,21 @@ const mapError = ref(false)
 const isLoginOpen = ref(false)
 const isSignupOpen = ref(false)
 const authModal = ref(null)
+// 닫히는 애니메이션 중에도 현재 폼을 유지합니다.
+const displayedAuthModal = ref('login')
+watch(authModal, (value) => {
+  if (value) displayedAuthModal.value = value
+}, { flush: 'sync' })
 
 const placeStore = usePlaceStore()
 const authStore = useAuthStore()
+const isSettingsOpen = ref(false)
+const activeMobileTab = computed(() => isSettingsOpen.value ? 'settings' :
+  ({ ALL: 'map', ORIPA: 'oripa', POKEMON_VENDING: 'vending' })[placeStore.selectedType])
+const selectMobileTab = (tab) => {
+  isSettingsOpen.value = tab.id === 'settings'
+  if (tab.type) placeStore.setType(tab.type)
+}
 
 let map = null
 let mapIdleListener = null
@@ -185,7 +206,7 @@ onMounted(async () => {
   try {
     await placeStore.fetchPlaces()
 
-    if (!placeStore.selectedPlace) {
+    if (!placeStore.selectedPlace && !window.matchMedia('(max-width: 768px)').matches) {
       const initialPlace = placeStore.places.find(
         (place) => place.type === 'POKEMON_VENDING' && place.branchName?.trim() === '홍대점',
       )
@@ -253,13 +274,52 @@ onBeforeUnmount(() => {
   z-index: 200;
 }
 
-@media (max-width: 600px) {
+.mobile-settings { display: none; }
+
+@media (max-width: 768px) {
+  .page {
+    --mobile-header-height: calc(56px + env(safe-area-inset-top, 0px));
+    --mobile-nav-height: calc(68px + env(safe-area-inset-bottom, 0px));
+    position: relative;
+    width: 100vw;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .map-page {
+    width: 100%;
+    height: calc(100dvh - var(--mobile-nav-height));
+  }
   #map {
     flex-basis: 100%;
+    width: 100%;
   }
 
   .map-search-header {
+    top: var(--mobile-header-height);
     width: 100%;
+    height: 64px;
+    padding: 0 max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+  }
+  .map-search-header:focus-within { z-index: 400; }
+  :deep(.search-results) {
+    max-height: min(300px, calc(100dvh - var(--mobile-header-height) - var(--mobile-nav-height) - 76px));
+    overscroll-behavior-y: contain;
+  }
+  .mobile-settings {
+    display: block;
+    position: absolute;
+    inset: var(--mobile-header-height) 0 var(--mobile-nav-height);
+    z-index: 450;
+    padding: 24px;
+    background: #fff;
+  }
+  .mobile-settings button {
+    float: right;
+    padding: 10px;
+    border: 0;
+    border-radius: 8px;
+    background: #f3f2ff;
+    color: #635bff;
   }
 }
 </style>

@@ -119,7 +119,21 @@ const handleBackdropMouseUp = (event) => {
   color: #111827;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
+  .auth-slide-enter-active,
+  .auth-slide-leave-active {
+    transition: opacity 0.4s ease;
+  }
+  .auth-slide-enter-active .modal-box,
+  .auth-slide-leave-active .modal-box {
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .auth-slide-enter-from,
+  .auth-slide-leave-to { opacity: 0; }
+  .auth-slide-enter-from .modal-box,
+  .auth-slide-leave-to .modal-box { transform: translateY(100%); }
+  .auth-slide-leave-active { pointer-events: none; }
+
   .modal-overlay {
     padding: 0;
     align-items: flex-end;
@@ -127,11 +141,17 @@ const handleBackdropMouseUp = (event) => {
 
   .modal-box {
     max-width: none;
-    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 16px);
 
-    padding: 28px 20px 24px;
+    padding: 28px max(20px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left));
 
     border-radius: 24px 24px 0 0;
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-slide-enter-active,
+  .auth-slide-leave-active,
+  .auth-slide-enter-active .modal-box,
+  .auth-slide-leave-active .modal-box { transition: none; }
 }
 </style>

@@ -2,6 +2,7 @@
   <div class="search-container" ref="searchContainer">
     <div class="search-input-wrap">
       <input
+        ref="searchInput"
         class="search-input"
         type="text"
         :value="keyword"
@@ -50,6 +51,7 @@ const selectedIndex = ref(-1)
 
 const resultList = ref(null)
 const searchContainer = ref(null)
+const searchInput = ref(null)
 
 const placeStore = usePlaceStore()
 
@@ -202,6 +204,7 @@ const closeAutocomplete = () => {
 // 검색창 바깥 클릭
 const handleClickOutside = (event) => {
   if (!searchContainer.value?.contains(event.target)) {
+    searchInput.value?.blur()
     closeAutocomplete()
   }
 }
@@ -253,7 +256,7 @@ onBeforeUnmount(() => {
   background: transparent;
 
   color: #222;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
 }
 

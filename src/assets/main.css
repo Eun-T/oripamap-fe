@@ -12,3 +12,13 @@ select {
 body {
   margin: 0;
 }
+
+/* Prevent input focus zoom on mobile, including tablets and landscape screens. */
+@media (max-width: 768px), (any-pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']):not([type='color']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']),
+  textarea,
+  select {
+    /* Override component styles so every editable field keeps a readable size. */
+    font-size: 16px !important;
+  }
+}
