@@ -3,7 +3,7 @@
     <textarea
       ref="commentTextarea"
       v-model="content"
-      maxlength="500"
+      :maxlength="MAX_CONTENT_LENGTH"
       rows="1"
       :disabled="!user"
       :placeholder="
@@ -28,8 +28,8 @@
       <button
         type="button"
         class="editor-icon-button"
-        :disabled="!user"
-        aria-label="사진 첨부"
+        :disabled="!user || imageProcessing"
+        :aria-label="imageProcessing ? '사진 처리 중' : '사진 첨부'"
         @click="openImagePicker"
       >
         <FontAwesomeIcon :icon="faCamera" />
@@ -39,12 +39,13 @@
         class="hidden-file-input"
         type="file"
         accept="image/jpeg,image/png"
+        :disabled="imageProcessing"
         @change="handleImageChange"
       />
       <button
         type="button"
         class="editor-icon-button submit-icon"
-        :disabled="!user || loading || !content.trim()"
+        :disabled="!user || loading || imageProcessing || !content.trim()"
         aria-label="댓글 등록"
         @click="submit"
       >
@@ -54,7 +55,11 @@
   </div>
 
   <div v-else class="reply-form">
-    <textarea v-model="content" maxlength="500" placeholder="답글을 입력해주세요."></textarea>
+    <textarea
+      v-model="content"
+      :maxlength="MAX_CONTENT_LENGTH"
+      placeholder="답글을 입력해주세요."
+    ></textarea>
     <div class="reply-form-actions">
       <button type="button" class="reply-cancel-button" @click="emit('cancel')">취소</button>
       <button type="button" class="reply-submit-button" :disabled="loading" @click="submit">
@@ -68,6 +73,7 @@
 import { nextTick, onBeforeUnmount, ref } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCamera, faPen } from '@fortawesome/free-solid-svg-icons'
+import imageCompression from 'browser-image-compression'
 
 const props = defineProps({
   mode: { type: String, default: 'comment' },
@@ -80,33 +86,45 @@ const commentTextarea = ref(null)
 const imageInput = ref(null)
 const selectedImage = ref(null)
 const previewImage = ref(null)
+const imageProcessing = ref(false)
+const MAX_CONTENT_LENGTH = 300
 const MAX_FILE_SIZE = 5 * 1024 * 1024
-const MAX_PIXEL_COUNT = 20_000_000
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png']
+let compressionController = null
+let compressionRequestId = 0
 
 const openImagePicker = () => {
-  if (!props.user) return
+  if (!props.user || imageProcessing.value) return
   imageInput.value?.click()
 }
-const removeImage = () => {
+
+const clearSelectedImage = () => {
   if (previewImage.value) URL.revokeObjectURL(previewImage.value)
   selectedImage.value = null
   previewImage.value = null
 }
-const getImageDimensions = (url) =>
-  new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight })
-    image.onerror = reject
-    image.src = url
-  })
+
+const cancelImageProcessing = () => {
+  compressionRequestId += 1
+  compressionController?.abort()
+  compressionController = null
+  imageProcessing.value = false
+}
+
+const removeImage = () => {
+  cancelImageProcessing()
+  clearSelectedImage()
+  if (imageInput.value) imageInput.value.value = ''
+}
 
 const handleImageChange = async (event) => {
   const input = event.target
-  const file = event.target.files?.[0]
+  const file = input.files?.[0]
   if (!file) return
 
   input.value = ''
+
+  if (imageProcessing.value) return
 
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
     alert('JPG 또는 PNG 이미지만 첨부할 수 있습니다.')
@@ -118,23 +136,43 @@ const handleImageChange = async (event) => {
     return
   }
 
-  const objectUrl = URL.createObjectURL(file)
+  const requestId = ++compressionRequestId
+  const controller = new AbortController()
+  compressionController = controller
+  imageProcessing.value = true
 
   try {
-    const { width, height } = await getImageDimensions(objectUrl)
+    const compressedImage = await imageCompression(file, {
+      maxWidthOrHeight: 1600,
+      initialQuality: file.type === 'image/jpeg' ? 0.8 : 1,
+      fileType: file.type,
+      useWebWorker: true,
+      signal: controller.signal,
+    })
 
-    if (width * height > MAX_PIXEL_COUNT) {
-      URL.revokeObjectURL(objectUrl)
-      alert('이미지는 최대 2,000만 픽셀까지 첨부할 수 있습니다.')
-      return
+    if (requestId !== compressionRequestId) return
+
+    const processedFile =
+      compressedImage instanceof File
+        ? compressedImage
+        : new File([compressedImage], file.name, {
+            type: file.type,
+            lastModified: file.lastModified,
+          })
+
+    clearSelectedImage()
+    selectedImage.value = processedFile
+    previewImage.value = URL.createObjectURL(processedFile)
+  } catch (error) {
+    if (requestId === compressionRequestId && !controller.signal.aborted) {
+      console.error('이미지 처리 실패:', error)
+      alert('이미지를 처리하지 못했습니다. 다른 이미지를 선택해주세요.')
     }
-
-    removeImage()
-    selectedImage.value = file
-    previewImage.value = objectUrl
-  } catch {
-    URL.revokeObjectURL(objectUrl)
-    alert('이미지 파일을 읽을 수 없습니다.')
+  } finally {
+    if (requestId === compressionRequestId) {
+      compressionController = null
+      imageProcessing.value = false
+    }
   }
 }
 const resizeTextarea = () => {
@@ -149,6 +187,12 @@ const resetEditor = async () => {
   if (commentTextarea.value) commentTextarea.value.style.height = 'auto'
 }
 const submit = () => {
+  if (imageProcessing.value) return
+  if (content.value.length > MAX_CONTENT_LENGTH) {
+    alert(`댓글과 답글은 ${MAX_CONTENT_LENGTH}자 이내로 입력해주세요.`)
+    return
+  }
+
   const trimmedContent = content.value.trim()
   if (!trimmedContent) {
     alert(props.mode === 'reply' ? '답글 내용을 입력해주세요.' : '댓글 내용을 입력해주세요.')

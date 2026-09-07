@@ -54,7 +54,7 @@
       <span>카카오 로그인</span>
     </button>
 
-    <button class="social-button naver">
+    <button class="social-button naver" @click="loginWithNaver">
       <span class="naver-logo">N</span>
       <span>네이버 로그인</span>
     </button>
@@ -124,6 +124,10 @@ const login = async () => {
 }
 
 const loginWithKakao = () => {
-  window.location.href = 'http://localhost:8080/api/auth/kakao'
+  window.location.href = 'http://localhost/api/auth/kakao'
+}
+
+const loginWithNaver = () => {
+  window.location.href = 'http://localhost/api/auth/naver'
 }
 </script>

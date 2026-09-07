@@ -66,6 +66,8 @@ import { getPhotoComments } from '@/api/commentApi'
 
 const PREVIEW_COUNT = 3
 
+const emit = defineEmits(['loaded'])
+
 const props = defineProps({
   placeId: {
     type: Number,
@@ -116,12 +118,14 @@ const refresh = async () => {
 
     if (currentRequestId === requestId) {
       photoComments.value = Array.isArray(comments) ? comments : []
+      emit('loaded', photoComments.value)
     }
   } catch (error) {
     if (currentRequestId === requestId) {
       console.error('방문자 사진 조회 실패:', error)
       photoComments.value = []
       loadFailed.value = true
+      emit('loaded', [])
     }
   } finally {
     if (currentRequestId === requestId) {

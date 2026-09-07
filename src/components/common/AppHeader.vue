@@ -2,8 +2,9 @@
   <header class="app-header">
     <div class="header-left">
       <button type="button" class="brand" @click="goHome">
-        <span class="brand-mark">◩</span>
-        <span class="brand-name">ORIPAMAP</span>
+        <img class="brand-logo" src="/images/logo/logo-purple2.png" alt="ORIPAMAP">
+        <!-- <span class="brand-mark">◩</span>
+        <span class="brand-name">ORIPAMAP</span> -->
       </button>
 
       <nav class="main-nav">
@@ -100,12 +101,18 @@ const emit = defineEmits(['open-login'])
   align-items: center;
   gap: 10px;
 
-  padding: 0;
+  padding-left: 20px;
 
   border: 0;
   background: transparent;
 
   cursor: pointer;
+}
+
+.brand-logo {
+  display: block;
+  width: auto;
+  height: 38px;
 }
 
 .brand-mark {
@@ -148,7 +155,7 @@ const emit = defineEmits(['open-login'])
 
   color: #333;
 
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
 
   cursor: pointer;
@@ -173,6 +180,7 @@ const emit = defineEmits(['open-login'])
   }
   .header-left { min-width: 0; }
   .brand { gap: 4px; }
+  .brand-logo { height: 36px; }
   .brand-name { font-size: 16px; }
   .brand-mark { width: 24px; font-size: 22px; }
   .main-nav { display: none; }

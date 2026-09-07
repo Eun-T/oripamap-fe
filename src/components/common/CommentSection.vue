@@ -2,7 +2,11 @@
   <div class="community-section">
     <div class="section-divider"></div>
 
-    <VisitorPhotoSection ref="visitorPhotoSection" :place-id="placeId" />
+    <VisitorPhotoSection
+      ref="visitorPhotoSection"
+      :place-id="placeId"
+      @loaded="emit('photos-changed', $event)"
+    />
 
     <div class="section-divider"></div>
 
@@ -133,7 +137,6 @@ const submitComment = async (content, file) => {
 
     await commentEditor.value?.resetEditor()
     await Promise.all([loadComments(), visitorPhotoSection.value?.refresh()])
-    emit('photos-changed')
   } catch (error) {
     console.error('댓글 작성 실패:', error)
   } finally {
@@ -151,7 +154,6 @@ const handleDelete = async (commentId) => {
   try {
     await deleteComment(commentId)
     await Promise.all([loadComments(), visitorPhotoSection.value?.refresh()])
-    emit('photos-changed')
   } catch (error) {
     console.error('댓글 삭제 실패:', error)
   }

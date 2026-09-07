@@ -137,7 +137,7 @@
       </button>
 
       <!-- 댓글 -->
-      <CommentSection ref="commentSection" :place-id="place.id" @photos-changed="loadPlacePhotos" />
+      <CommentSection ref="commentSection" :place-id="place.id" @photos-changed="setPlacePhotos" />
 
       <EditRequestModal :open="editModalOpen" :place="place" @close="editModalOpen = false" />
     </div>
@@ -162,7 +162,6 @@ import CommentSection from '@/components/common/CommentSection.vue'
 import EditRequestModal from '@/components/common/EditRequestModal.vue'
 
 import { getFavorite, addFavorite, removeFavorite } from '@/api/favoriteApi'
-import { getPhotoComments } from '@/api/commentApi'
 import { shareContent } from '@/utils/shareContent'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -193,7 +192,6 @@ const locationOverflowing = ref(false)
 let scrollContainer = null
 let scrollEndTimer = null
 let imageCarouselTimer = null
-let photoRequestId = 0
 let summaryResizeObserver = null
 let isProgrammaticScrolling = false
 
@@ -257,46 +255,22 @@ const getCreatedAtTime = (createdAt) => {
   return Number.isNaN(time) ? 0 : time
 }
 
-const loadPlacePhotos = async (resetForNewPlace = false) => {
-  const placeId = props.place?.id
-  const currentRequestId = ++photoRequestId
+const setPlacePhotos = (comments) => {
   const previousImageUrl = placePhotos.value[currentImageIndex.value]?.imageUrl
 
-  if (resetForNewPlace) {
-    stopImageCarousel()
-    currentImageIndex.value = 0
-    placePhotos.value = []
-  }
+  const nextPhotos = (Array.isArray(comments) ? comments : [])
+    .filter((comment) => comment?.parentCommentId == null && comment.imageUrl)
+    .sort((a, b) => getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt))
+    .slice(0, 3)
 
-  if (!placeId) {
-    placePhotos.value = []
-    return
-  }
+  const previousImageIndex = nextPhotos.findIndex(
+    (comment) => comment.imageUrl === previousImageUrl,
+  )
 
-  try {
-    const comments = await getPhotoComments(placeId)
+  placePhotos.value = nextPhotos
+  currentImageIndex.value = previousImageIndex >= 0 ? previousImageIndex : 0
 
-    if (currentRequestId !== photoRequestId) return
-
-    const nextPhotos = (Array.isArray(comments) ? comments : [])
-      .filter((comment) => comment?.parentCommentId == null && comment.imageUrl)
-      .sort((a, b) => getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt))
-      .slice(0, 3)
-
-    const previousImageIndex = nextPhotos.findIndex(
-      (comment) => comment.imageUrl === previousImageUrl,
-    )
-
-    placePhotos.value = nextPhotos
-    currentImageIndex.value = previousImageIndex >= 0 ? previousImageIndex : 0
-
-    startImageCarousel()
-  } catch (error) {
-    if (currentRequestId !== photoRequestId) return
-
-    console.error('대표 방문자 사진 조회 실패:', error)
-    if (resetForNewPlace) placePhotos.value = []
-  }
+  startImageCarousel()
 }
 
 const finishProgrammaticScroll = () => {
@@ -449,7 +423,9 @@ watch(
   async () => {
     addressExpanded.value = false
     locationExpanded.value = false
-    loadPlacePhotos(true)
+    stopImageCarousel()
+    currentImageIndex.value = 0
+    placePhotos.value = []
     await nextTick()
     updateSummaryOverflow()
   },
