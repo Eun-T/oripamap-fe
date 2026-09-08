@@ -59,10 +59,10 @@
       <span>네이버 로그인</span>
     </button>
 
-    <button class="social-button google">
+    <!-- <button class="social-button google">
       <span class="google-logo">G</span>
       <span>구글 로그인</span>
-    </button>
+    </button> -->
   </div>
 
   <footer class="auth-footer">

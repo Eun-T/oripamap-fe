@@ -38,7 +38,7 @@
         ref="imageInput"
         class="hidden-file-input"
         type="file"
-        accept="image/jpeg,image/png"
+        accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif"
         :disabled="imageProcessing"
         @change="handleImageChange"
       />
@@ -90,6 +90,7 @@ const imageProcessing = ref(false)
 const MAX_CONTENT_LENGTH = 300
 const MAX_FILE_SIZE = 5 * 1024 * 1024
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png']
+const HEIC_IMAGE_TYPES = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence']
 let compressionController = null
 let compressionRequestId = 0
 
@@ -117,6 +118,73 @@ const removeImage = () => {
   if (imageInput.value) imageInput.value.value = ''
 }
 
+const throwIfImageProcessingAborted = (signal) => {
+  if (signal.aborted) throw new DOMException('Image processing aborted.', 'AbortError')
+}
+
+const readBlobAsImageData = async (blob, signal) => {
+  const imageUrl = URL.createObjectURL(blob)
+  const image = new Image()
+
+  try {
+    await new Promise((resolve, reject) => {
+      const cleanup = () => {
+        image.onload = null
+        image.onerror = null
+        signal.removeEventListener('abort', handleAbort)
+      }
+      const handleAbort = () => {
+        cleanup()
+        image.src = ''
+        reject(new DOMException('Image processing aborted.', 'AbortError'))
+      }
+
+      image.onload = () => {
+        cleanup()
+        resolve()
+      }
+      image.onerror = () => {
+        cleanup()
+        reject(new Error('Fallback image could not be loaded.'))
+      }
+      signal.addEventListener('abort', handleAbort, { once: true })
+      image.src = imageUrl
+    })
+
+    throwIfImageProcessingAborted(signal)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+
+    try {
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('Canvas context could not be created.')
+
+      context.drawImage(image, 0, 0)
+      return context.getImageData(0, 0, canvas.width, canvas.height)
+    } finally {
+      canvas.width = 0
+      canvas.height = 0
+    }
+  } finally {
+    URL.revokeObjectURL(imageUrl)
+  }
+}
+
+const encodeWebpFallback = async (blob, signal) => {
+  const { default: encodeWebp } = await import('@jsquash/webp/encode.js')
+  throwIfImageProcessingAborted(signal)
+
+  const imageData = await readBlobAsImageData(blob, signal)
+  throwIfImageProcessingAborted(signal)
+
+  const webpBuffer = await encodeWebp(imageData, { quality: 75 })
+  throwIfImageProcessingAborted(signal)
+
+  return new Blob([webpBuffer], { type: 'image/webp' })
+}
+
 const handleImageChange = async (event) => {
   const input = event.target
   const file = input.files?.[0]
@@ -126,8 +194,14 @@ const handleImageChange = async (event) => {
 
   if (imageProcessing.value) return
 
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    alert('JPG 또는 PNG 이미지만 첨부할 수 있습니다.')
+  const normalizedFileType = file.type.toLowerCase()
+  const hasHeicExtension = /\.(heic|heif)$/i.test(file.name)
+  const isHeicImage =
+    HEIC_IMAGE_TYPES.includes(normalizedFileType) ||
+    ((!normalizedFileType || normalizedFileType === 'application/octet-stream') && hasHeicExtension)
+
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type) && !isHeicImage) {
+    alert('JPG, PNG, HEIC 또는 HEIF 이미지만 첨부할 수 있습니다.')
     return
   }
 
@@ -142,23 +216,56 @@ const handleImageChange = async (event) => {
   imageProcessing.value = true
 
   try {
-    const compressedImage = await imageCompression(file, {
-      maxWidthOrHeight: 1600,
-      initialQuality: file.type === 'image/jpeg' ? 0.8 : 1,
-      fileType: file.type,
+    let imageToCompress = file
+
+    if (isHeicImage) {
+      try {
+        const { default: heic2any } = await import('heic2any')
+        const convertedImage = await heic2any({
+          blob: file,
+          toType: 'image/jpeg',
+        })
+
+        if (requestId !== compressionRequestId || controller.signal.aborted) return
+
+        const jpegBlob = Array.isArray(convertedImage) ? convertedImage[0] : convertedImage
+        if (!jpegBlob) throw new Error('HEIC/HEIF conversion returned no image.')
+
+        const baseName = file.name.replace(/\.[^.]+$/, '') || 'image'
+        imageToCompress = new File([jpegBlob], `${baseName}.jpg`, {
+          type: 'image/jpeg',
+          lastModified: file.lastModified,
+        })
+      } catch (error) {
+        if (requestId === compressionRequestId && !controller.signal.aborted) {
+          console.error('HEIC/HEIF 이미지 변환 실패:', error)
+          alert('HEIC/HEIF 이미지를 변환하지 못했습니다. JPG 또는 PNG 이미지로 다시 시도해 주세요.')
+        }
+        return
+      }
+    }
+
+    let processedImage = await imageCompression(imageToCompress, {
+      maxWidthOrHeight: 1200,
+      initialQuality: 0.75,
+      fileType: 'image/webp',
       useWebWorker: true,
       signal: controller.signal,
     })
 
     if (requestId !== compressionRequestId) return
 
-    const processedFile =
-      compressedImage instanceof File
-        ? compressedImage
-        : new File([compressedImage], file.name, {
-            type: file.type,
-            lastModified: file.lastModified,
-          })
+    if (processedImage.type !== 'image/webp') {
+      processedImage = await encodeWebpFallback(processedImage, controller.signal)
+    }
+
+    if (requestId !== compressionRequestId) return
+
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'image'
+    const processedFile = new File([processedImage], `${baseName}.webp`, {
+      type: 'image/webp',
+      lastModified: file.lastModified,
+    })
 
     clearSelectedImage()
     selectedImage.value = processedFile
