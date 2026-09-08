@@ -1,8 +1,10 @@
 import api from '@/api'
 
 // 댓글 목록
-export const getComments = async (placeId) => {
-  const response = await api.get(`/api/comments/place/${placeId}`)
+export const getComments = async (placeId, page = 0, size = 5) => {
+  const response = await api.get(`/api/comments/place/${placeId}`, {
+    params: { page, size },
+  })
   return response.data
 }
 
@@ -21,7 +23,8 @@ export const addComment = async (placeId, content, file = null) => {
     formData.append('file', file)
   }
 
-  await api.post(`/api/comments/place/${placeId}`, formData)
+  const response = await api.post(`/api/comments/place/${placeId}`, formData)
+  return response.data
 }
 
 // 댓글 삭제
@@ -37,7 +40,8 @@ export const updateComment = async (commentId, content) => {
 }
 // 대댓글 추가
 export const addReply = async (commentId, content) => {
-  await api.post(`/api/comments/${commentId}/replies`, {
+  const response = await api.post(`/api/comments/${commentId}/replies`, {
     content,
   })
+  return response.data
 }

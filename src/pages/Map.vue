@@ -88,13 +88,17 @@ let mapIdleListener = null
 
 const markers = new Map()
 
-const getMarkerIcon = (type) => {
+const getMarkerIcon = (type, isSelected = false) => {
   if (type === 'POKEMON_VENDING') {
-    return '/images/markers/vending-marker.png'
+    return isSelected
+      ? '/images/markers/vending-marker-use.png'
+      : '/images/markers/vending-marker.png'
   }
 
   if (type === 'ORIPA') {
-    return '/images/markers/oripa-marker.png'
+    return isSelected
+      ? '/images/markers/vending-marker-use.png'
+      : '/images/markers/oripa-marker.png'
   }
 
   return null
@@ -103,21 +107,31 @@ const getMarkerIcon = (type) => {
 const getMarkerKey = (place) =>
   place.id ?? `${place.type}:${place.latitude}:${place.longitude}:${place.name}`
 
+const getMarkerIconOptions = (place) => {
+  const isSelected = placeStore.selectedPlace
+    && getMarkerKey(placeStore.selectedPlace) === getMarkerKey(place)
+  const iconUrl = getMarkerIcon(place.type, isSelected)
+
+  if (!iconUrl) return null
+
+  return {
+    url: iconUrl,
+    size: new window.naver.maps.Size(40, 48),
+    scaledSize: new window.naver.maps.Size(40, 48),
+    anchor: new window.naver.maps.Point(20, 48),
+  }
+}
+
 const createMarker = (place, position) => {
-  const iconUrl = getMarkerIcon(place.type)
+  const icon = getMarkerIconOptions(place)
 
   const markerOptions = {
     map,
     position,
   }
 
-  if (iconUrl) {
-    markerOptions.icon = {
-      url: iconUrl,
-      size: new window.naver.maps.Size(40, 48),
-      scaledSize: new window.naver.maps.Size(40, 48),
-      anchor: new window.naver.maps.Point(20, 48),
-    }
+  if (icon) {
+    markerOptions.icon = icon
   }
 
   const marker = new window.naver.maps.Marker(markerOptions)
@@ -157,6 +171,8 @@ const syncVisibleMarkers = () => {
 
     if (cachedMarker) {
       if (!cachedMarker.getMap()) cachedMarker.setMap(map)
+      const icon = getMarkerIconOptions(place)
+      if (icon) cachedMarker.setIcon(icon)
       return
     }
 
@@ -185,6 +201,8 @@ const initMap = () => {
 watch(
   () => placeStore.selectedPlace,
   (place) => {
+    syncVisibleMarkers()
+
     if (!place || !map) {
       return
     }

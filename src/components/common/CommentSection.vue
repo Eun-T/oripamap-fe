@@ -16,7 +16,7 @@
     <section ref="commentSection" class="comment-section">
       <div class="comment-title">
         댓글
-        <span>{{ comments.length }}</span>
+        <span>{{ totalCount }}</span>
       </div>
 
       <!-- =========================
@@ -25,12 +25,14 @@
       <CommentEditor
         ref="commentEditor"
         :user="authStore.user"
-        :loading="commentLoading"
+        :loading="commentLoading || commentsLoading"
         @submit="submitComment"
       />
 
       <!-- 댓글 없음 -->
-      <div v-if="comments.length === 0" class="comment-empty">아직 댓글이 없습니다.</div>
+      <div v-if="!commentsLoading && comments.length === 0" class="comment-empty">
+        아직 댓글이 없습니다.
+      </div>
 
       <!-- =========================
            원댓글 목록
@@ -44,7 +46,7 @@
         :opened-menu-id="openedMenuId"
         :editing-comment-id="editingCommentId"
         :replying-comment-id="replyingCommentId"
-        :reply-loading="replyLoading"
+        :reply-loading="replyLoading || commentsLoading"
         @toggle-menu="toggleCommentMenu"
         @edit="editComment"
         @delete="handleDelete"
@@ -55,6 +57,17 @@
         @submit-reply="submitReply"
         @share="shareComment"
       />
+
+      <div v-if="hasNext" class="comment-load-more-wrap">
+        <button
+          type="button"
+          class="comment-load-more"
+          :disabled="commentsLoading || commentLoading || replyLoading"
+          @click="loadMoreComments"
+        >
+          {{ commentsLoading ? '불러오는 중...' : '댓글 더보기' }}
+        </button>
+      </div>
     </section>
   </div>
 </template>
@@ -82,6 +95,12 @@ const props = defineProps({
 const emit = defineEmits(['photos-changed'])
 
 const comments = ref([])
+const totalCount = ref(0)
+const currentPage = ref(0)
+const hasNext = ref(false)
+const commentsLoading = ref(false)
+const COMMENTS_PAGE_SIZE = 5
+let commentsRequestId = 0
 
 const commentLoading = ref(false)
 
@@ -103,15 +122,73 @@ const replyLoading = ref(false)
    댓글 조회
 ========================= */
 
-const loadComments = async () => {
-  if (!props.placeId) return
+const loadComments = async ({ reset = true } = {}) => {
+  if (!props.placeId) {
+    if (reset) {
+      comments.value = []
+      totalCount.value = 0
+      currentPage.value = 0
+      hasNext.value = false
+    }
+    return
+  }
+
+  if (!reset && (commentsLoading.value || !hasNext.value)) return
+
+  const placeId = props.placeId
+  const targetPage = reset ? 0 : currentPage.value + 1
+  const requestId = ++commentsRequestId
+
+  if (reset) {
+    comments.value = []
+    totalCount.value = 0
+    currentPage.value = 0
+    hasNext.value = false
+  }
+
+  commentsLoading.value = true
 
   try {
-    comments.value = await getComments(props.placeId)
+    const data = await getComments(placeId, targetPage, COMMENTS_PAGE_SIZE)
+
+    if (requestId !== commentsRequestId || placeId !== props.placeId) return
+
+    const nextComments = Array.isArray(data?.comments) ? data.comments : []
+    if (reset) {
+      comments.value = nextComments
+    } else {
+      const existingIds = new Set(comments.value.map((comment) => String(comment.id)))
+      const uniqueNextComments = nextComments.filter(
+        (comment) => !existingIds.has(String(comment.id)),
+      )
+      comments.value = [...comments.value, ...uniqueNextComments]
+    }
+    totalCount.value = Number.isInteger(data?.totalCount) ? data.totalCount : 0
+    currentPage.value = Number.isInteger(data?.page) ? data.page : targetPage
+    hasNext.value = data?.hasNext === true
   } catch (error) {
     console.error('댓글 조회 실패:', error)
-    comments.value = []
+
+    if (requestId === commentsRequestId && reset) {
+      comments.value = []
+      totalCount.value = 0
+      currentPage.value = 0
+      hasNext.value = false
+    }
+  } finally {
+    if (requestId === commentsRequestId) {
+      commentsLoading.value = false
+    }
   }
+}
+
+const loadMoreComments = () => {
+  if (commentLoading.value || replyLoading.value) return
+  return loadComments({ reset: false })
+}
+
+const incrementTotalCount = () => {
+  totalCount.value = (Number.isInteger(totalCount.value) ? totalCount.value : 0) + 1
 }
 
 /* =========================
@@ -126,17 +203,33 @@ const submitComment = async (content, file) => {
     return
   }
 
-  if (!props.placeId || commentLoading.value) {
+  if (!props.placeId || commentLoading.value || commentsLoading.value) {
     return
   }
 
   try {
     commentLoading.value = true
 
-    await addComment(props.placeId, content, file)
+    const placeId = props.placeId
+    const createdComment = await addComment(placeId, content, file)
 
     await commentEditor.value?.resetEditor()
-    await Promise.all([loadComments(), visitorPhotoSection.value?.refresh()])
+
+    if (placeId !== props.placeId) return
+
+    // Ignore an older in-flight list request so it cannot overwrite the new comment.
+    commentsRequestId += 1
+    commentsLoading.value = false
+    comments.value = [
+      {
+        ...createdComment,
+        replies: Array.isArray(createdComment?.replies) ? createdComment.replies : [],
+      },
+      ...comments.value,
+    ]
+    incrementTotalCount()
+
+    if (file) await visitorPhotoSection.value?.refresh()
   } catch (error) {
     console.error('댓글 작성 실패:', error)
   } finally {
@@ -248,16 +341,38 @@ const submitReply = async (commentId, content) => {
     return
   }
 
-  if (replyLoading.value) return
+  if (replyLoading.value || commentsLoading.value) return
 
   try {
     replyLoading.value = true
 
-    await addReply(commentId, content)
+    const placeId = props.placeId
+    const createdReply = await addReply(commentId, content)
 
     cancelReply()
 
-    await loadComments()
+    if (placeId !== props.placeId) return
+
+    // Ignore an older in-flight list request so it cannot overwrite the new reply.
+    commentsRequestId += 1
+    commentsLoading.value = false
+
+    // Prefer the response's parent id, but retain the submitted id for compatibility.
+    const parentCommentId = createdReply?.parentCommentId ?? commentId
+    const parentIndex = comments.value.findIndex(
+      (comment) => String(comment.id) === String(parentCommentId),
+    )
+
+    if (parentIndex !== -1) {
+      const parent = comments.value[parentIndex]
+      const replies = Array.isArray(parent.replies) ? parent.replies : []
+      comments.value[parentIndex] = {
+        ...parent,
+        replies: [...replies, createdReply],
+      }
+    }
+
+    incrementTotalCount()
   } catch (error) {
     console.error('답글 작성 실패:', error)
 
@@ -385,6 +500,35 @@ watch(
 
   font-size: 14px;
   text-align: center;
+}
+
+.comment-load-more-wrap {
+  display: flex;
+  justify-content: center;
+  padding-top: 16px;
+}
+
+.comment-load-more {
+  min-width: 120px;
+  padding: 9px 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+
+  background: #fff;
+  color: #555;
+
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.comment-load-more:hover:not(:disabled) {
+  border-color: #635bff;
+  color: #635bff;
+}
+
+.comment-load-more:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 /* =========================
