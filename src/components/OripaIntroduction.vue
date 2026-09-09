@@ -44,15 +44,13 @@
       </template>
     </div>
 
-    <div class="introduction-container">
-      <h3 v-if="oripaPlace.summary" class="introduction-summary">
-        {{ oripaPlace.summary }}
-      </h3>
+    <h3 v-if="oripaPlace.summary" class="introduction-summary">
+      {{ oripaPlace.summary }}
+    </h3>
 
-      <p v-if="oripaPlace.introduction" class="introduction-text">
-        {{ oripaPlace.introduction }}
-      </p>
-    </div>
+    <p v-if="oripaPlace.introduction" class="introduction-text">
+      {{ oripaPlace.introduction }}
+    </p>
 
     <div v-if="socialLinks.length" class="dividers"></div>
 
@@ -196,14 +194,13 @@ watch(oripaImages, () => {
 }
 
 .introduction-container {
-    position: relative;
+  position: relative;
   padding: 28px 22px 24px;
 
   background: #faf7f0;
   border-radius: 20px;
 
-  box-shadow:
-    0 6px 20px rgb(0 0 0 / 7%);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 7%);
 
   border: 1px solid rgb(0 0 0 / 2%);
 }

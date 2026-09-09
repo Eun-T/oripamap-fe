@@ -622,9 +622,11 @@ onBeforeUnmount(() => {
     padding: 0;
   }
   .modal {
-    max-height: 92dvh;
-    padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px));
-    border-radius: 16px 16px 0 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 16px
+      calc(20px + env(safe-area-inset-bottom, 0px));
+    border-radius: 0;
   }
   .social-row {
     align-items: stretch;
