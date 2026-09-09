@@ -83,15 +83,21 @@
               <h3 id="image-title">매장 이미지</h3>
               <small>위에서 아래 순서대로 상세 화면에 표시됩니다.</small>
             </div>
-            <button type="button" class="text-button" @click="imageInput?.click()">
-              + 이미지 추가
+            <button
+              type="button"
+              class="text-button"
+              :disabled="submitting || imageProcessing"
+              @click="imageInput?.click()"
+            >
+              {{ imageProcessing ? '이미지 처리 중...' : '+ 이미지 추가' }}
             </button>
             <input
               ref="imageInput"
               class="hidden-input"
               type="file"
-              accept="image/*"
+              :accept="IMAGE_FILE_ACCEPT"
               multiple
+              :disabled="submitting || imageProcessing"
               @change="addImages"
             />
           </div>
@@ -139,7 +145,7 @@
           <button type="button" class="cancel-button" :disabled="submitting" @click="close">
             취소
           </button>
-          <button type="submit" class="submit-button" :disabled="submitting">
+          <button type="submit" class="submit-button" :disabled="submitting || imageProcessing">
             {{ submitting ? '저장 중...' : '저장' }}
           </button>
         </footer>
@@ -151,6 +157,7 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { usePlaceStore } from '@/stores/placeStore'
+import { IMAGE_FILE_ACCEPT, processImageFile, validateImageFile } from '@/utils/imageProcessing'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -165,10 +172,13 @@ const introduction = ref('')
 const socialLinks = ref([])
 const images = ref([])
 const imageInput = ref(null)
+const imageProcessing = ref(false)
 const submitting = ref(false)
 const errorMessage = ref('')
 const backdropPressed = ref(false)
 let nextKey = 0
+let imageProcessingController = null
+let imageProcessingRequestId = 0
 
 const sortedExistingImages = () =>
   (Array.isArray(props.place.oripaPlace?.images) ? props.place.oripaPlace.images : [])
@@ -185,7 +195,15 @@ const revokeNewImageUrls = () => {
   })
 }
 
+const cancelImageProcessing = () => {
+  imageProcessingRequestId += 1
+  imageProcessingController?.abort()
+  imageProcessingController = null
+  imageProcessing.value = false
+}
+
 const initialize = () => {
+  cancelImageProcessing()
   revokeNewImageUrls()
   const detail = props.place.oripaPlace || {}
   summary.value = detail.summary || ''
@@ -212,19 +230,77 @@ const addSocialLink = () => {
 }
 const removeSocialLink = (index) => socialLinks.value.splice(index, 1)
 
-const addImages = (event) => {
-  const files = Array.from(event.target.files || []).filter((file) =>
-    file.type.startsWith('image/'),
-  )
-  files.forEach((file) => {
-    images.value.push({
-      key: `new-${nextKey++}`,
-      kind: 'new',
-      file,
-      previewUrl: URL.createObjectURL(file),
-    })
+const addImages = async (event) => {
+  const input = event.target
+  const selectedFiles = Array.from(input.files || [])
+  input.value = ''
+
+  if (!selectedFiles.length || imageProcessing.value) return
+
+  const validFiles = []
+  let hasUnsupportedFile = false
+  let hasOversizedFile = false
+
+  selectedFiles.forEach((file) => {
+    const validationError = validateImageFile(file)
+    if (validationError === 'unsupported-type') hasUnsupportedFile = true
+    else if (validationError === 'file-too-large') hasOversizedFile = true
+    else validFiles.push(file)
   })
-  event.target.value = ''
+
+  if (hasUnsupportedFile) alert('JPG, PNG, HEIC 또는 HEIF 이미지만 첨부할 수 있습니다.')
+  if (hasOversizedFile) alert('이미지 크기는 5MB 이하여야 합니다.')
+  if (!validFiles.length) return
+
+  const requestId = ++imageProcessingRequestId
+  const controller = new AbortController()
+  imageProcessingController = controller
+  imageProcessing.value = true
+  const processedFiles = []
+  let hasHeicConversionFailure = false
+  let hasProcessingFailure = false
+
+  try {
+    for (const file of validFiles) {
+      try {
+        const processedFile = await processImageFile(file, { signal: controller.signal })
+        if (requestId !== imageProcessingRequestId || controller.signal.aborted) return
+        processedFiles.push(processedFile)
+      } catch (error) {
+        if (requestId !== imageProcessingRequestId || controller.signal.aborted) return
+        if (error.code === 'heic-conversion-failed') {
+          hasHeicConversionFailure = true
+          console.error('HEIC/HEIF 이미지 변환 실패:', error)
+        } else {
+          hasProcessingFailure = true
+          console.error('이미지 처리 실패:', error)
+        }
+      }
+    }
+
+    processedFiles.forEach((file) => {
+      images.value.push({
+        key: `new-${nextKey++}`,
+        kind: 'new',
+        file,
+        previewUrl: URL.createObjectURL(file),
+      })
+    })
+
+    if (hasHeicConversionFailure) {
+      alert(
+        '일부 HEIC/HEIF 이미지를 변환하지 못했습니다. JPG 또는 PNG 이미지로 다시 시도해 주세요.',
+      )
+    }
+    if (hasProcessingFailure) {
+      alert('일부 이미지를 처리하지 못했습니다. 다른 이미지를 선택해주세요.')
+    }
+  } finally {
+    if (requestId === imageProcessingRequestId) {
+      imageProcessingController = null
+      imageProcessing.value = false
+    }
+  }
 }
 
 const removeImage = (index) => {
@@ -248,7 +324,7 @@ const closeFromBackdrop = (event) => {
 }
 
 const submit = async () => {
-  if (submitting.value) return
+  if (submitting.value || imageProcessing.value) return
   errorMessage.value = ''
 
   const links = socialLinks.value
@@ -291,15 +367,25 @@ const submit = async () => {
   }
 }
 
-watch([() => props.open, () => props.place.id], ([open]) => {
-  if (open) {
-    initialize()
-  } else {
-    revokeNewImageUrls()
-    images.value = []
-  }
+watch(
+  [() => props.open, () => props.place.id],
+  ([open]) => {
+    if (open) {
+      initialize()
+    } else {
+      cancelImageProcessing()
+      revokeNewImageUrls()
+      images.value = []
+    }
+  },
+  {
+    immediate: true,
+  },
+)
+onBeforeUnmount(() => {
+  cancelImageProcessing()
+  revokeNewImageUrls()
 })
-onBeforeUnmount(revokeNewImageUrls)
 </script>
 
 <style scoped>

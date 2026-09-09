@@ -95,90 +95,6 @@
         </div>
       </div>
 
-      <section v-if="oripaPlace" class="oripa-introduction" aria-label="매장 소개">
-        <h3 v-if="oripaPlace.summary" class="introduction-summary">
-          {{ oripaPlace.summary }}
-        </h3>
-
-        <div v-if="oripaImages.length" class="oripa-carousel">
-          <Transition name="oripa-image-fade">
-            <img
-              :key="currentOripaImage.id ?? currentOripaImage.imageUrl"
-              class="oripa-carousel-image"
-              :src="currentOripaImage.imageUrl"
-              :alt="`${place.name} 소개 이미지 ${currentOripaImageIndex + 1}`"
-            />
-          </Transition>
-
-          <template v-if="oripaImages.length > 1">
-            <button
-              type="button"
-              class="carousel-button carousel-button-prev"
-              aria-label="이전 이미지"
-              @click="showPreviousOripaImage"
-            >
-              <span aria-hidden="true">‹</span>
-            </button>
-            <button
-              type="button"
-              class="carousel-button carousel-button-next"
-              aria-label="다음 이미지"
-              @click="showNextOripaImage"
-            >
-              <span aria-hidden="true">›</span>
-            </button>
-
-            <div class="carousel-pagination" aria-label="소개 이미지 선택">
-              <button
-                v-for="(image, index) in oripaImages"
-                :key="image.id ?? image.imageUrl"
-                type="button"
-                class="carousel-dot"
-                :class="{ active: currentOripaImageIndex === index }"
-                :aria-label="`${index + 1}번째 이미지 보기`"
-                :aria-current="currentOripaImageIndex === index ? 'true' : undefined"
-                @click="currentOripaImageIndex = index"
-              ></button>
-            </div>
-          </template>
-        </div>
-
-        <p v-if="oripaPlace.introduction" class="introduction-text">
-          {{ oripaPlace.introduction }}
-        </p>
-
-        <nav v-if="oripaSocialLinks.length" class="social-links" aria-label="소셜 링크">
-          <a
-            v-for="(link, index) in oripaSocialLinks"
-            :key="`${link.platform}-${link.url}-${index}`"
-            class="social-link"
-            :href="link.url"
-            target="_blank"
-            rel="noopener noreferrer"
-            :aria-label="`${getSocialPlatformLabel(link.platform)} 새 탭에서 열기`"
-            :title="getSocialPlatformLabel(link.platform)"
-          >
-            <svg
-              v-if="normalizePlatform(link.platform) === 'INSTAGRAM'"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="5" />
-              <circle cx="12" cy="12" r="4.25" />
-              <circle class="filled" cx="17.4" cy="6.7" r="1.15" />
-            </svg>
-            <svg
-              v-else-if="['X', 'TWITTER'].includes(normalizePlatform(link.platform))"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path d="M5 4L19 20M19 4L5 20" />
-            </svg>
-            <FontAwesomeIcon v-else :icon="faLink" aria-hidden="true" />
-          </a>
-        </nav>
-      </section>
-
       <!-- =========================
            액션 버튼
       ========================== -->
@@ -204,15 +120,6 @@
         </button>
       </div>
 
-      <button
-        v-if="canEditOripaPlace"
-        class="manage-edit-button"
-        type="button"
-        @click="oripaEditModalOpen = true"
-      >
-        매장 정보 수정
-      </button>
-
       <!-- =========================
            정보 수정 요청
       ========================== -->
@@ -221,16 +128,20 @@
       </button>
 
       <!-- =========================
+           오리파 소개
+      ========================== -->
+      <div class="section-divider"></div>
+      <h3 class="introduction-header">
+        소개글
+      </h3>
+      <OripaIntroduction v-if="oripaPlace" :place-name="place.name" :oripa-place="oripaPlace" />
+
+      <!-- =========================
            댓글
       ========================== -->
       <CommentSection ref="commentSection" :place-id="place.id" />
 
       <EditRequestModal :open="editModalOpen" :place="place" @close="editModalOpen = false" />
-      <OripaEditModal
-        :open="oripaEditModalOpen"
-        :place="place"
-        @close="oripaEditModalOpen = false"
-      />
     </div>
   </div>
 </template>
@@ -247,17 +158,16 @@ import {
   faCompass,
 } from '@fortawesome/free-regular-svg-icons'
 
-import { faHeart as faHeartSolid, faLink } from '@fortawesome/free-solid-svg-icons'
+import { faHeart as faHeartSolid } from '@fortawesome/free-solid-svg-icons'
 
 import CommentSection from '@/components/common/CommentSection.vue'
 import EditRequestModal from '@/components/common/EditRequestModal.vue'
-import OripaEditModal from '@/components/OripaEditModal.vue'
+import OripaIntroduction from '@/components/OripaIntroduction.vue'
 
 import { getFavorite, addFavorite, removeFavorite } from '@/api/favoriteApi'
 
 import { shareContent } from '@/utils/shareContent'
 import { useAuthStore } from '@/stores/authStore'
-import { userHasRole } from '@/utils/userRole'
 
 const authStore = useAuthStore()
 const DEFAULT_ORIPA_IMAGE = '/images/places/oripa-store.png'
@@ -275,59 +185,6 @@ const oripaPlace = computed(() => {
 
   return detail && typeof detail === 'object' ? detail : null
 })
-const oripaImages = computed(() =>
-  (Array.isArray(oripaPlace.value?.images) ? oripaPlace.value.images : [])
-    .filter((image) => image?.imageUrl)
-    .map((image, index) => ({ ...image, originalIndex: index }))
-    .sort((a, b) => {
-      const aOrder = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : Infinity
-      const bOrder = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : Infinity
-
-      return aOrder - bOrder || a.originalIndex - b.originalIndex
-    }),
-)
-const oripaSocialLinks = computed(() =>
-  (Array.isArray(oripaPlace.value?.socialLinks) ? oripaPlace.value.socialLinks : []).filter(
-    (link) => link?.url,
-  ),
-)
-const canEditOripaPlace = computed(() => {
-  if (props.place.type !== 'ORIPA') return false
-  if (userHasRole(authStore.user, 'ADMIN')) return true
-
-  return (
-    userHasRole(authStore.user, 'OWNER') &&
-    authStore.user?.placeId != null &&
-    String(authStore.user.placeId) === String(props.place.id)
-  )
-})
-const currentOripaImageIndex = ref(0)
-const currentOripaImage = computed(
-  () => oripaImages.value[currentOripaImageIndex.value] || oripaImages.value[0],
-)
-
-const normalizePlatform = (platform) =>
-  String(platform || '')
-    .trim()
-    .toUpperCase()
-const getSocialPlatformLabel = (platform) => {
-  const normalizedPlatform = normalizePlatform(platform)
-
-  if (normalizedPlatform === 'INSTAGRAM') return 'Instagram'
-  if (normalizedPlatform === 'X' || normalizedPlatform === 'TWITTER') return 'X'
-
-  return platform || '외부 링크'
-}
-
-const showPreviousOripaImage = () => {
-  currentOripaImageIndex.value =
-    (currentOripaImageIndex.value - 1 + oripaImages.value.length) % oripaImages.value.length
-}
-
-const showNextOripaImage = () => {
-  currentOripaImageIndex.value = (currentOripaImageIndex.value + 1) % oripaImages.value.length
-}
-
 const isFavorite = ref(false)
 
 const activeTab = ref('all')
@@ -337,7 +194,6 @@ const infoSection = ref(null)
 const commentSection = ref(null)
 
 const editModalOpen = ref(false)
-const oripaEditModalOpen = ref(false)
 
 let scrollContainer = null
 let scrollEndTimer = null
@@ -536,14 +392,6 @@ watch(
     immediate: true,
   },
 )
-
-watch([() => props.place?.id, () => oripaImages.value.length], () => {
-  currentOripaImageIndex.value = 0
-})
-
-watch(canEditOripaPlace, (canEdit) => {
-  if (!canEdit) oripaEditModalOpen.value = false
-})
 
 /* =========================
    길찾기
@@ -768,162 +616,6 @@ const sharePlace = async () => {
 }
 
 /* =========================
-   매장 소개
-========================= */
-
-.oripa-introduction {
-  margin-top: 18px;
-  padding: 20px;
-  overflow: hidden;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #fff;
-}
-
-.introduction-summary {
-  margin: 0;
-  color: #292929;
-  font-size: 17px;
-  font-weight: 800;
-  line-height: 1.45;
-  word-break: keep-all;
-}
-
-.oripa-carousel {
-  position: relative;
-  height: 190px;
-  margin: 16px -20px 0;
-  overflow: hidden;
-  background: #f3f4f6;
-}
-
-.oripa-carousel-image {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.oripa-image-fade-enter-active,
-.oripa-image-fade-leave-active {
-  transition: opacity 0.25s ease;
-}
-
-.oripa-image-fade-enter-from,
-.oripa-image-fade-leave-to {
-  opacity: 0;
-}
-
-.carousel-button {
-  position: absolute;
-  top: 50%;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  padding: 0 0 3px;
-  transform: translateY(-50%);
-  border: none;
-  border-radius: 50%;
-  background: rgb(0 0 0 / 42%);
-  color: #fff;
-  font-size: 28px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.carousel-button-prev {
-  left: 10px;
-}
-
-.carousel-button-next {
-  right: 10px;
-}
-
-.carousel-pagination {
-  position: absolute;
-  right: 0;
-  bottom: 10px;
-  left: 0;
-  z-index: 2;
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-}
-
-.carousel-dot {
-  width: 7px;
-  height: 7px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 58%);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
-  cursor: pointer;
-}
-
-.carousel-dot.active {
-  width: 18px;
-  border-radius: 999px;
-  background: #fff;
-}
-
-.introduction-text {
-  margin: 18px 0 0;
-  color: #555;
-  font-size: 14px;
-  line-height: 1.75;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.social-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
-  margin-top: 18px;
-}
-
-.social-link {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid #dedcf8;
-  border-radius: 50%;
-  background: #f7f6ff;
-  color: #635bff;
-  font-size: 16px;
-  transition:
-    color 0.15s ease,
-    background-color 0.15s ease;
-}
-
-.social-link:hover {
-  background: #635bff;
-  color: #fff;
-}
-
-.social-link svg {
-  width: 18px;
-  height: 18px;
-  overflow: visible;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-}
-
-.social-link svg .filled {
-  fill: currentColor;
-  stroke: none;
-}
-
-/* =========================
    액션
 ========================= */
 
@@ -993,6 +685,7 @@ const sharePlace = async () => {
   border: none;
   border-radius: 7px;
 
+  /* background: #f3f4f6; */
   background: #635bff;
   color: #fff;
 
@@ -1008,26 +701,17 @@ const sharePlace = async () => {
   background: #5147f5;
 }
 
-.manage-edit-button {
-  width: 100%;
-  height: 42px;
-  margin: -6px 0 16px;
-  border: 1px solid #635bff;
-  border-radius: 7px;
-  background: #fff;
-  color: #635bff;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    color 0.15s ease,
-    background-color 0.15s ease;
+.section-divider {
+  height: 8px;
+  margin: 24px -18px;
+  background: #f3f4f6;
 }
 
-.manage-edit-button:hover {
-  background: #f7f6ff;
+.introduction-header {
+  color: #222;
+    font-size: 17px;
+    font-weight: 700;
 }
-
 /* =========================
    모바일
 ========================= */

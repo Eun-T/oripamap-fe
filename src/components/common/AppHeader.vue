@@ -111,7 +111,9 @@ const openStoreManager = async () => {
       return
     }
 
-    if (place?.type !== 'ORIPA' || !place.oripaPlace) {
+    // ORIPA 상세 행은 매장 정보를 처음 저장할 때 생성되므로,
+    // 아직 oripaPlace가 없는 연결 매장도 빈 편집 화면을 열 수 있어야 합니다.
+    if (place?.type !== 'ORIPA') {
       showManagerError('연결된 ORIPA 매장 정보를 불러오지 못했습니다.')
       return
     }
