@@ -53,58 +53,69 @@
     <div class="content">
       <!-- 핵심 정보 카드 -->
       <div ref="infoSection" class="summary-card">
-        <div class="summary-row">
-          <span class="summary-label">주소</span>
-          <button
-            ref="addressValue"
-            type="button"
-            class="expandable-summary-value"
-            :class="{ expanded: addressExpanded }"
-            :disabled="!addressOverflowing && !addressExpanded"
-            :aria-expanded="addressExpanded"
-            :title="
-              addressOverflowing || addressExpanded
-                ? addressExpanded
-                  ? '주소 접기'
-                  : '전체 주소 보기'
-                : undefined
-            "
-            @click="toggleAddress"
-          >
-            {{ place.address }}
+        <div class="summary-row address-row">
+          <MapPin class="summary-icon" />
+          <div class="summary-content">
+            <button
+              ref="addressValue"
+              type="button"
+              class="expandable-summary-value"
+              :class="{ expanded: addressExpanded }"
+              :disabled="!addressOverflowing && !addressExpanded"
+              :aria-expanded="addressExpanded"
+              :title="
+                addressOverflowing || addressExpanded
+                  ? addressExpanded
+                    ? '주소 접기'
+                    : '전체 주소 보기'
+                  : undefined
+              "
+              @click="toggleAddress"
+            >
+              {{ place.address || '정보 없음' }}
+            </button>
+          </div>
+          <button class="copy-button" @click="copyAddress">
+            <Copy />
           </button>
         </div>
 
         <div class="summary-row">
-          <span class="summary-label">설치 위치</span>
-          <button
-            ref="locationValue"
-            type="button"
-            class="expandable-summary-value"
-            :class="{ expanded: locationExpanded }"
-            :disabled="!locationOverflowing && !locationExpanded"
-            :aria-expanded="locationExpanded"
-            :title="
-              locationOverflowing || locationExpanded
-                ? locationExpanded
-                  ? '설치 위치 접기'
-                  : '전체 설치 위치 보기'
-                : undefined
-            "
-            @click="toggleLocation"
-          >
-            {{ place.locationDetail || '정보 없음' }}
-          </button>
+          <Navigation class="summary-icon" />
+          <div class="summary-content">
+            <button
+              ref="locationValue"
+              type="button"
+              class="expandable-summary-value"
+              :class="{ expanded: locationExpanded }"
+              :disabled="!locationOverflowing && !locationExpanded"
+              :aria-expanded="locationExpanded"
+              :title="
+                locationOverflowing || locationExpanded
+                  ? locationExpanded
+                    ? '설치 위치 접기'
+                    : '전체 설치 위치 보기'
+                  : undefined
+              "
+              @click="toggleLocation"
+            >
+              {{ place.locationDetail || '정보 없음' }}
+            </button>
+          </div>
         </div>
 
         <div class="summary-row">
-          <span class="summary-label">운영시간</span>
-          <strong>{{ place.businessHours || '정보 없음' }}</strong>
+          <Clock class="summary-icon" />
+          <div class="summary-content">
+            <strong>{{ place.businessHours || '정보 없음' }}</strong>
+          </div>
         </div>
 
         <div class="summary-row">
-          <span class="summary-label">휴무일</span>
-          <strong>{{ place.holidayInfo || '정보 없음' }}</strong>
+          <CalendarDays class="summary-icon" />
+          <div class="summary-content">
+            <strong>{{ place.holidayInfo || '정보 없음' }}</strong>
+          </div>
         </div>
       </div>
 
@@ -158,10 +169,13 @@ import {
 
 import { faHeart as faHeartSolid } from '@fortawesome/free-solid-svg-icons'
 
+import { MapPin, CalendarDays, Navigation, Copy, Clock } from '@lucide/vue'
+
 import CommentSection from '@/components/common/CommentSection.vue'
 import EditRequestModal from '@/components/common/EditRequestModal.vue'
 
 import { getFavorite, addFavorite, removeFavorite } from '@/api/favoriteApi'
+import { copyToClipboard } from '@/utils/clipboard'
 import { shareContent } from '@/utils/shareContent'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -189,11 +203,32 @@ const addressValue = ref(null)
 const locationValue = ref(null)
 const addressOverflowing = ref(false)
 const locationOverflowing = ref(false)
+const copyFeedback = ref('')
 let scrollContainer = null
 let scrollEndTimer = null
 let imageCarouselTimer = null
 let summaryResizeObserver = null
 let isProgrammaticScrolling = false
+let copyFeedbackTimer = null
+
+const copyAddress = async () => {
+  const address = props.place?.address?.trim()
+  if (!address) return
+
+  clearTimeout(copyFeedbackTimer)
+
+  try {
+    await copyToClipboard(address)
+    copyFeedback.value = '주소가 복사되었습니다.'
+  } catch (error) {
+    console.error('주소 복사 실패:', error)
+    copyFeedback.value = '주소를 복사하지 못했습니다.'
+  }
+
+  copyFeedbackTimer = setTimeout(() => {
+    copyFeedback.value = ''
+  }, 1800)
+}
 
 const updateSummaryOverflow = () => {
   if (!addressExpanded.value && addressValue.value) {
@@ -366,6 +401,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearTimeout(scrollEndTimer)
+  clearTimeout(copyFeedbackTimer)
   stopImageCarousel()
   summaryResizeObserver?.disconnect()
   scrollContainer?.removeEventListener('scroll', updateActiveTab)
@@ -421,6 +457,8 @@ watch(
 watch(
   () => props.place?.id,
   async () => {
+    clearTimeout(copyFeedbackTimer)
+    copyFeedback.value = ''
     addressExpanded.value = false
     locationExpanded.value = false
     stopImageCarousel()
@@ -601,44 +639,115 @@ const sharePlace = async () => {
 }
 
 /* =========================
-   핵심 정보 카드
+   핵심 정보
 ========================= */
 
 .summary-card {
-  padding: 18px 20px;
-
-  background: #fff;
-
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .summary-row {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
 
-  padding: 2px 0;
+.summary-row.address-row {
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+}
+
+.copy-control {
+  position: relative;
+  align-self: center;
+  justify-self: end;
+}
+
+.copy-button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.copy-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.copy-button:focus-visible {
+  outline: 2px solid #635bff;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.copy-button svg {
+  width: 17px;
+  height: 17px;
+  color: rgb(142 148 163);
+}
+
+.copy-feedback {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  width: max-content;
+  max-width: 190px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: #24262d;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.3;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 16%);
+}
+
+.copy-feedback-enter-active,
+.copy-feedback-leave-active {
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.copy-feedback-enter-from,
+.copy-feedback-leave-to {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
+.summary-icon {
+  width: 18px;
+  margin-top: 2px;
+  color: rgb(142 148 163);
+  font-size: 17px;
+}
+
+.summary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 
 .summary-label {
-  flex-shrink: 0;
-
-  width: 76px;
-
   color: #888;
-
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .summary-row strong {
-  flex: 1;
-
-  color: #444;
-
+  color: #404553;
   font-size: 14px;
   font-weight: 500;
   line-height: 1.4;
-
   word-break: keep-all;
 }
 
@@ -674,9 +783,6 @@ const sharePlace = async () => {
 
 .expandable-summary-value:disabled {
   cursor: default;
-}
-.address-row {
-  margin-top: 3px;
 }
 
 /* =========================

@@ -42,7 +42,7 @@ import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import {  faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
+import { faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
 
 import { usePlaceStore } from '@/stores/placeStore'
 
@@ -243,7 +243,6 @@ onBeforeUnmount(() => {
 
   border: 2px solid #635bff;
   border-radius: 2px;
-
   overflow: hidden;
 }
 
@@ -364,5 +363,45 @@ onBeforeUnmount(() => {
 
 .search-result-item.active strong {
   color: #635bff;
+}
+
+@media (max-width: 768px) {
+  .search-input-wrap {
+    height: 48px;
+    border: 1px solid rgb(229 231 235 / 75%);
+    border-radius: 4px;
+    background: #fff;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.16);
+
+  }
+
+  .search-input {
+    padding: 0 16px;
+    color: #252832;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .search-input::placeholder {
+    color: #a6aab3;
+  }
+
+  .search-button {
+    width: 48px;
+    background: #fff;
+    color: #5f6470;
+    font-size: 23px;
+  }
+
+  .search-button:hover {
+    background: #f8f8fa;
+  }
+
+  .search-results {
+    top: 54px;
+    border-color: rgb(229 231 235 / 80%);
+    border-radius: 10px;
+    box-shadow: 0 6px 18px rgb(0 0 0 / 10%);
+  }
 }
 </style>

@@ -1,36 +1,39 @@
 <template>
   <div class="page">
-    <AppHeader @open-login="authModal = 'login'" />
+    <AppHeader class="map-app-header" @open-login="authModal = 'login'" />
 
     <div class="map-page">
       <div class="map-search-header">
+        <button type="button" class="mobile-filter-button" aria-label="장소 유형 필터 열기">
+          <SlidersHorizontal aria-hidden="true" />
+        </button>
         <Search />
       </div>
 
       <Transition name="auth-slide">
-      <BaseModal v-if="authModal" @close="authModal = null">
-        <template #header>
-          <div class="auth-header">
-            <template v-if="displayedAuthModal === 'login'">
-              <h1>로그인</h1>
-              <p>오리파맵을 더 편리하게 이용해보세요.</p>
-            </template>
+        <BaseModal v-if="authModal" @close="authModal = null">
+          <template #header>
+            <div class="auth-header">
+              <template v-if="displayedAuthModal === 'login'">
+                <h1>로그인</h1>
+                <p>오리파맵을 더 편리하게 이용해보세요.</p>
+              </template>
 
-            <template v-else>
-              <h1>회원가입</h1>
-              <p>오리파맵 계정을 만들어보세요.</p>
-            </template>
-          </div>
-        </template>
+              <template v-else>
+                <h1>회원가입</h1>
+                <p>오리파맵 계정을 만들어보세요.</p>
+              </template>
+            </div>
+          </template>
 
-        <LoginForm
-          v-if="displayedAuthModal === 'login'"
-          @close="authModal = null"
-          @open-signup="authModal = 'signup'"
-        />
+          <LoginForm
+            v-if="displayedAuthModal === 'login'"
+            @close="authModal = null"
+            @open-signup="authModal = 'signup'"
+          />
 
-        <SignupForm v-else @open-login="authModal = 'login'" />
-      </BaseModal>
+          <SignupForm v-else @open-login="authModal = 'login'" />
+        </BaseModal>
       </Transition>
 
       <PlaceSidebar :place="placeStore.selectedPlace" @close="closePlace" />
@@ -51,6 +54,7 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { SlidersHorizontal } from '@lucide/vue'
 import BottomNavigation from '@/components/common/BottomNavigation.vue'
 import { loadNaverMapScript } from '@/utils/naverMapLoader'
 import PlaceSidebar from '@/components/PlaceSidebar.vue'
@@ -70,9 +74,13 @@ const isSignupOpen = ref(false)
 const authModal = ref(null)
 // 닫히는 애니메이션 중에도 현재 폼을 유지합니다.
 const displayedAuthModal = ref('login')
-watch(authModal, (value) => {
-  if (value) displayedAuthModal.value = value
-}, { flush: 'sync' })
+watch(
+  authModal,
+  (value) => {
+    if (value) displayedAuthModal.value = value
+  },
+  { flush: 'sync' },
+)
 
 const placeStore = usePlaceStore()
 const authStore = useAuthStore()
@@ -80,8 +88,11 @@ const route = useRoute()
 const router = useRouter()
 const placesReady = ref(false)
 const isSettingsOpen = ref(false)
-const activeMobileTab = computed(() => isSettingsOpen.value ? 'settings' :
-  ({ ALL: 'map', ORIPA: 'oripa', POKEMON_VENDING: 'vending' })[placeStore.selectedType])
+const activeMobileTab = computed(() =>
+  isSettingsOpen.value
+    ? 'settings'
+    : { ALL: 'map', ORIPA: 'oripa', POKEMON_VENDING: 'vending' }[placeStore.selectedType],
+)
 const selectMobileTab = (tab) => {
   isSettingsOpen.value = tab.id === 'settings'
   if (tab.type) placeStore.setType(tab.type)
@@ -128,8 +139,8 @@ const getMarkerKey = (place) =>
   place.id ?? `${place.type}:${place.latitude}:${place.longitude}:${place.name}`
 
 const getMarkerIconOptions = (place) => {
-  const isSelected = placeStore.selectedPlace
-    && getMarkerKey(placeStore.selectedPlace) === getMarkerKey(place)
+  const isSelected =
+    placeStore.selectedPlace && getMarkerKey(placeStore.selectedPlace) === getMarkerKey(place)
   const iconUrl = getMarkerIcon(place.type, isSelected)
 
   if (!iconUrl) return null
@@ -216,8 +227,7 @@ const getPlacePosition = (place) => {
 
 const initMap = () => {
   const center =
-    getPlacePosition(placeStore.selectedPlace) ||
-    new window.naver.maps.LatLng(37.5572, 126.9245)
+    getPlacePosition(placeStore.selectedPlace) || new window.naver.maps.LatLng(37.5572, 126.9245)
 
   map = new window.naver.maps.Map('map', {
     center,
@@ -251,10 +261,7 @@ watch(
   },
 )
 
-watch(
-  () => placeStore.selectedType,
-  syncVisibleMarkers,
-)
+watch(() => placeStore.selectedType, syncVisibleMarkers)
 
 onMounted(async () => {
   authStore.fetchMe()
@@ -287,6 +294,7 @@ onBeforeUnmount(() => {
 .page {
   width: 100vw;
   height: 100vh;
+  padding-left: 65px;
 
   overflow: hidden;
 }
@@ -296,7 +304,7 @@ onBeforeUnmount(() => {
   display: flex;
 
   width: 100%;
-  height: calc(100vh - 72px);
+  height: 100vh;
 }
 
 #map {
@@ -309,7 +317,6 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 0;
   left: 0;
-
   width: 380px;
   height: 84px;
 
@@ -322,15 +329,20 @@ onBeforeUnmount(() => {
   z-index: 200;
 }
 
-.mobile-settings { display: none; }
+.mobile-settings {
+  display: none;
+}
+.mobile-filter-button {
+  display: none;
+}
 
 @media (max-width: 768px) {
   .page {
-    --mobile-header-height: calc(56px + env(safe-area-inset-top, 0px));
     --mobile-nav-height: calc(68px + env(safe-area-inset-bottom, 0px));
     position: relative;
     width: 100vw;
     height: 100dvh;
+    padding-left: 0;
     overflow: hidden;
   }
   .map-page {
@@ -342,23 +354,57 @@ onBeforeUnmount(() => {
     width: 100%;
   }
 
-  .map-search-header {
-    top: var(--mobile-header-height);
-    width: 100%;
-    height: 64px;
-    padding: 0 max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+  .map-app-header {
+    display: none;
   }
-  .map-search-header:focus-within { z-index: 400; }
+
+  .map-search-header {
+    top: 0;
+    gap: 8px;
+    width: 100%;
+    margin-top: 15px;
+    height: calc(64px + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) max(12px, env(safe-area-inset-right)) 0
+      max(12px, env(safe-area-inset-left));
+  }
+  .mobile-filter-button {
+    display: grid;
+    place-items: center;
+    flex: 0 0 55px;
+    width: 55px;
+    height: 45px;
+    padding: 0;
+    border: 1px solid #dedee8;
+    border-radius: 2px;
+    background: #635bff;
+    color: #fff;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.16);
+    cursor: pointer;
+  }
+  .mobile-filter-button svg {
+    width: 19px;
+    height: 19px;
+  }
+  .map-search-header :deep(.search-container) {
+    flex: 1;
+    min-width: 0;
+  }
+  .map-search-header:focus-within {
+    z-index: 400;
+  }
   :deep(.search-results) {
-    max-height: min(300px, calc(100dvh - var(--mobile-header-height) - var(--mobile-nav-height) - 76px));
+    max-height: min(
+      300px,
+      calc(100dvh - env(safe-area-inset-top, 0px) - var(--mobile-nav-height) - 76px)
+    );
     overscroll-behavior-y: contain;
   }
   .mobile-settings {
     display: block;
     position: absolute;
-    inset: var(--mobile-header-height) 0 var(--mobile-nav-height);
+    inset: 0 0 var(--mobile-nav-height);
     z-index: 450;
-    padding: 24px;
+    padding: calc(24px + env(safe-area-inset-top, 0px)) 24px 24px;
     background: #fff;
   }
   .mobile-settings button {

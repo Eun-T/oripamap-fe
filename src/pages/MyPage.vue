@@ -204,6 +204,7 @@ onMounted(loadFavorites)
 .my-page {
   width: 100%;
   height: 100dvh;
+  padding-left: 65px;
   overflow-y: auto;
   background: #f7f7fa;
   color: #222;
@@ -475,6 +476,7 @@ h1 {
 @media (max-width: 768px) {
   .my-page {
     --mobile-header-height: calc(56px + env(safe-area-inset-top, 0px));
+    padding-left: 0;
   }
   .my-content {
     width: 100%;

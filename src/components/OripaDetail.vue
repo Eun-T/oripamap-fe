@@ -54,45 +54,92 @@
            핵심 정보 카드
       ========================== -->
       <div ref="infoSection" class="summary-card">
-        <div class="summary-row">
-          <span class="summary-label">주소</span>
-
-          <strong :class="{ empty: !place.address }">
-            {{ place.address || '정보 없음' }}
-          </strong>
+        <div class="summary-row copyable-row">
+          <MapPin class="summary-icon" aria-hidden="true" />
+          <div class="summary-content">
+            <strong :class="{ empty: !place.address }">
+              {{ place.address || '정보 없음' }}
+            </strong>
+          </div>
+          <div class="copy-control">
+            <button
+              type="button"
+              class="copy-button"
+              aria-label="주소 복사"
+              :disabled="!place.address"
+              @click="copyAddress"
+            >
+              <Copy aria-hidden="true" />
+            </button>
+            <Transition name="copy-feedback">
+              <span
+                v-if="copyFeedbackTarget === 'address'"
+                class="copy-feedback"
+                role="status"
+                aria-live="polite"
+              >
+                {{ copyFeedback }}
+              </span>
+            </Transition>
+          </div>
         </div>
 
         <div class="summary-row">
-          <span class="summary-label">운영시간</span>
-
-          <strong :class="{ empty: !place.businessHours }">
-            {{ place.businessHours || '정보 없음' }}
-          </strong>
+          <Clock class="summary-icon" aria-hidden="true" />
+          <div class="summary-content">
+            <strong :class="{ empty: !place.businessHours }">
+              {{ place.businessHours || '정보 없음' }}
+            </strong>
+          </div>
         </div>
 
         <div class="summary-row">
-          <span class="summary-label">휴무일</span>
-
-          <strong :class="{ empty: !place.holidayInfo }">
-            {{ place.holidayInfo || '정보 없음' }}
-          </strong>
+          <CalendarDays class="summary-icon" aria-hidden="true" />
+          <div class="summary-content">
+            <strong :class="{ empty: !place.holidayInfo }">
+              {{ place.holidayInfo || '정보 없음' }}
+            </strong>
+          </div>
         </div>
 
-        <div class="summary-row">
-          <span class="summary-label">취급 카드</span>
-
-          <strong :class="{ empty: !place.cardTypes }">
-            {{ place.cardTypes || '정보 없음' }}
-          </strong>
+        <div class="summary-row copyable-row">
+          <Phone class="summary-icon" aria-hidden="true" />
+          <div class="summary-content">
+            <strong :class="{ empty: !place.phone }">
+              {{ place.phone || '정보 없음' }}
+            </strong>
+          </div>
+          <div class="copy-control">
+            <button
+              type="button"
+              class="copy-button"
+              aria-label="전화번호 복사"
+              :disabled="!place.phone"
+              @click="copyPhone"
+            >
+              <Copy aria-hidden="true" />
+            </button>
+            <Transition name="copy-feedback">
+              <span
+                v-if="copyFeedbackTarget === 'phone'"
+                class="copy-feedback"
+                role="status"
+                aria-live="polite"
+              >
+                {{ copyFeedback }}
+              </span>
+            </Transition>
+          </div>
         </div>
 
-        <div class="summary-row">
-          <span class="summary-label">오리파 판매</span>
-
-          <strong :class="{ empty: !place.oripaInfo }">
-            {{ place.oripaInfo || '정보 없음' }}
-          </strong>
-        </div>
+        <!-- <div class="summary-row">
+          <ShoppingBag class="summary-icon" aria-hidden="true" />
+          <div class="summary-content">
+            <strong :class="{ empty: !place.oripaInfo }">
+              {{ place.oripaInfo || '정보 없음' }}
+            </strong>
+          </div>
+        </div> -->
       </div>
 
       <!-- =========================
@@ -131,9 +178,7 @@
            오리파 소개
       ========================== -->
       <div class="section-divider"></div>
-      <h3 class="introduction-header">
-        소개글
-      </h3>
+      <h3 class="introduction-header">소개글</h3>
       <OripaIntroduction
         v-if="oripaPlace"
         :place-name="place.name"
@@ -164,6 +209,7 @@ import {
 } from '@fortawesome/free-regular-svg-icons'
 
 import { faHeart as faHeartSolid } from '@fortawesome/free-solid-svg-icons'
+import { CalendarDays, Clock, Copy, Phone, MapPin, ShoppingBag } from '@lucide/vue'
 
 import CommentSection from '@/components/common/CommentSection.vue'
 import EditRequestModal from '@/components/common/EditRequestModal.vue'
@@ -171,6 +217,7 @@ import OripaIntroduction from '@/components/OripaIntroduction.vue'
 
 import { getFavorite, addFavorite, removeFavorite } from '@/api/favoriteApi'
 
+import { copyToClipboard } from '@/utils/clipboard'
 import { shareContent } from '@/utils/shareContent'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -199,10 +246,37 @@ const infoSection = ref(null)
 const commentSection = ref(null)
 
 const editModalOpen = ref(false)
+const copyFeedback = ref('')
+const copyFeedbackTarget = ref('')
 
 let scrollContainer = null
 let scrollEndTimer = null
 let isProgrammaticScrolling = false
+let copyFeedbackTimer = null
+
+const copyPlaceInfo = async (value, label, target) => {
+  const text = value?.trim()
+  if (!text) return
+
+  clearTimeout(copyFeedbackTimer)
+  copyFeedbackTarget.value = target
+
+  try {
+    await copyToClipboard(text)
+    copyFeedback.value = `${label}가 복사되었습니다.`
+  } catch (error) {
+    console.error(`${label} 복사 실패:`, error)
+    copyFeedback.value = `${label}를 복사하지 못했습니다.`
+  }
+
+  copyFeedbackTimer = setTimeout(() => {
+    copyFeedback.value = ''
+    copyFeedbackTarget.value = ''
+  }, 1800)
+}
+
+const copyAddress = () => copyPlaceInfo(props.place?.address, '주소', 'address')
+const copyPhone = () => copyPlaceInfo(props.place?.phone, '전화번호', 'phone')
 
 /* =========================
    탭 스크롤 상태 종료
@@ -335,6 +409,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearTimeout(scrollEndTimer)
+  clearTimeout(copyFeedbackTimer)
 
   scrollContainer?.removeEventListener('scroll', updateActiveTab)
 })
@@ -390,6 +465,9 @@ const toggleFavorite = async () => {
 watch(
   [() => props.place?.id, () => authStore.user],
   () => {
+    clearTimeout(copyFeedbackTimer)
+    copyFeedback.value = ''
+    copyFeedbackTarget.value = ''
     activeTab.value = 'all'
     loadFavorite()
   },
@@ -575,49 +653,120 @@ const sharePlace = async () => {
 }
 
 /* =========================
-   정보 카드
+   핵심 정보
 ========================= */
 
 .summary-card {
-  padding: 18px 20px;
-
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-
-  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .summary-row {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
 
-  padding: 3px 0;
+.summary-row.copyable-row {
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+}
+
+.copy-control {
+  position: relative;
+  align-self: center;
+  justify-self: end;
+}
+
+.copy-button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.copy-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.copy-button:focus-visible {
+  outline: 2px solid #635bff;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.copy-button svg {
+  width: 17px;
+  height: 17px;
+  color: rgb(142 148 163);
+}
+
+.copy-feedback {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  width: max-content;
+  max-width: 190px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: #24262d;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.3;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 16%);
+}
+
+.copy-feedback-enter-active,
+.copy-feedback-leave-active {
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.copy-feedback-enter-from,
+.copy-feedback-leave-to {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
+.summary-icon {
+  width: 18px;
+  margin-top: 2px;
+  color: rgb(142 148 163);
+  font-size: 17px;
+}
+
+.summary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 
 .summary-label {
-  flex-shrink: 0;
-
-  width: 76px;
-
   color: #888;
-
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .summary-row strong {
-  flex: 1;
-
   color: #444;
-
   font-size: 14px;
   font-weight: 500;
   line-height: 1.4;
-
   word-break: keep-all;
 }
 
 .summary-row strong.empty {
-  color: #aaa;
+  color: #444;
 }
 
 /* =========================
@@ -714,8 +863,8 @@ const sharePlace = async () => {
 
 .introduction-header {
   color: #222;
-    font-size: 17px;
-    font-weight: 700;
+  font-size: 17px;
+  font-weight: 700;
 }
 /* =========================
    모바일

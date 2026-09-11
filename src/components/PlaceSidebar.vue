@@ -74,7 +74,7 @@ onBeforeUnmount(() => mobileQuery.removeEventListener('change', updateViewport))
 <style scoped>
 .place-sidebar {
   position: relative;
-  flex: 0 0 380px;
+  flex: 0 0 390px;
   height: 100%;
   padding-top: 84px;
   box-sizing: border-box;

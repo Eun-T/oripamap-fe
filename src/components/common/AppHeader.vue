@@ -3,36 +3,20 @@
     <div class="header-left">
       <button type="button" class="brand" @click="goHome">
         <img class="brand-logo" src="/images/logo/logo-purple2.png" alt="ORIPAMAP" />
-        <!-- <span class="brand-mark">◩</span>
-        <span class="brand-name">ORIPAMAP</span> -->
       </button>
 
-      <nav class="main-nav">
+      <nav class="main-nav" aria-label="주요 메뉴">
         <button
+          v-for="menu in menus"
+          :key="menu.id"
           type="button"
           class="nav-item"
-          :class="{ active: activeMenu === 'map' }"
-          @click="selectMenu('map')"
+          :class="{ active: activeMenu === menu.id }"
+          :aria-current="activeMenu === menu.id ? 'page' : undefined"
+          @click="selectMenu(menu.id)"
         >
-          지도
-        </button>
-
-        <button
-          type="button"
-          class="nav-item"
-          :class="{ active: activeMenu === 'oripa' }"
-          @click="selectMenu('oripa')"
-        >
-          오리파
-        </button>
-
-        <button
-          type="button"
-          class="nav-item"
-          :class="{ active: activeMenu === 'vending' }"
-          @click="selectMenu('vending')"
-        >
-          포켓몬 자판기
+          <component :is="menu.icon" class="nav-icon" aria-hidden="true" />
+          <span class="main-nav-text">{{ menu.label }}</span>
         </button>
       </nav>
     </div>
@@ -45,9 +29,15 @@
         :disabled="managerLoading"
         @click="openStoreManager"
       >
-        {{ managerLoading ? '불러오는 중...' : '매장 관리' }}
+        <FontAwesomeIcon :icon="faSliders" aria-hidden="true" />
+        <span class="desktop-manager-label">{{ managerLoading ? '로딩 중' : '관리' }}</span>
+        <span class="mobile-manager-label">
+          {{ managerLoading ? '불러오는 중...' : '매장 관리' }}
+        </span>
       </button>
       <LoginButton
+        compact
+        :active="route.path === '/my'"
         @open-login="emit('open-login')"
         @open-settings="emit('open-settings')"
       />
@@ -66,16 +56,26 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { faMap, faMobileScreenButton, faSliders, faStore } from '@fortawesome/free-solid-svg-icons'
 import { usePlaceStore } from '@/stores/placeStore'
 import { useAuthStore } from '@/stores/authStore'
 import { userHasRole } from '@/utils/userRole'
 import LoginButton from '@/components/common/LoginButton.vue'
 import OripaEditModal from '@/components/OripaEditModal.vue'
+import { Map, Store, Smartphone } from '@lucide/vue'
 
 const placeStore = usePlaceStore()
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+
+const menus = [
+  { id: 'map', label: '지도', icon: Map },
+  { id: 'oripa', label: '오리파', icon: Store },
+  { id: 'vending', label: '자판기', icon: Smartphone },
+]
 
 const isOwner = computed(
   () => userHasRole(authStore.user, 'OWNER') && !userHasRole(authStore.user, 'ADMIN'),
@@ -116,8 +116,6 @@ const openStoreManager = async () => {
       return
     }
 
-    // ORIPA 상세 행은 매장 정보를 처음 저장할 때 생성되므로,
-    // 아직 oripaPlace가 없는 연결 매장도 빈 편집 화면을 열 수 있어야 합니다.
     if (place?.type !== 'ORIPA') {
       showManagerError('연결된 ORIPA 매장 정보를 불러오지 못했습니다.')
       return
@@ -146,9 +144,10 @@ watch(
 
 onBeforeUnmount(() => clearTimeout(managerErrorTimer))
 
-const activeMenu = computed(
-  () => ({ ALL: 'map', ORIPA: 'oripa', POKEMON_VENDING: 'vending' })[placeStore.selectedType],
-)
+const activeMenu = computed(() => {
+  if (route.path === '/my') return 'profile'
+  return { ALL: 'map', ORIPA: 'oripa', POKEMON_VENDING: 'vending' }[placeStore.selectedType]
+})
 
 const goHome = () => {
   placeStore.setType('ALL')
@@ -156,19 +155,17 @@ const goHome = () => {
 }
 
 const selectMenu = (menu) => {
-  if (menu === 'map') {
-    placeStore.setType('ALL')
-  }
+  const placeType = {
+    map: 'ALL',
+    oripa: 'ORIPA',
+    vending: 'POKEMON_VENDING',
+  }[menu]
 
-  if (menu === 'oripa') {
-    placeStore.setType('ORIPA')
-  }
+  if (placeType) placeStore.setType(placeType)
 
-  if (menu === 'vending') {
-    placeStore.setType('POKEMON_VENDING')
+  if (route.name !== 'map' && route.name !== 'place') {
+    router.push('/map')
   }
-
-  router.push('/map')
 }
 
 const emit = defineEmits(['open-login', 'open-settings'])
@@ -176,54 +173,106 @@ const emit = defineEmits(['open-login', 'open-settings'])
 
 <style scoped>
 .app-header {
-  position: relative;
+  position: fixed;
+  inset: 0 auto 0 0;
   z-index: 500;
-
   display: flex;
-  align-items: center;
-
-  width: 100%;
-  height: 72px;
-
-  padding: 0 28px;
-  box-sizing: border-box;
-
+  flex-direction: column;
+  width: 65px;
+  height: 100vh;
+  padding: 8px 6px 10px;
   background: #fff;
-  border-bottom: 1px solid #e9e9e9;
+  border-right: 1px solid #e9e9e9;
+  box-shadow: 2px 0 12px rgb(0 0 0 / 4%);
+}
+
+.header-left,
+.main-nav,
+.header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .header-left {
-  display: flex;
-  align-items: center;
-  gap: 40px;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.main-nav {
+  gap: 12px;
+}
+
+.main-nav-text {
+  font-weight: 500;
 }
 
 .header-actions {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-left: auto;
+  gap: 8px;
+  margin-top: auto;
 }
 
-.header-actions :deep(.header-login-area) {
-  margin-left: 0;
+.brand {
+  display: grid;
+  place-items: center;
+  width: 53px;
+  height: 53px;
+  padding: 5px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
+.brand-logo {
+  display: block;
+  width: auto;
+  height: 30px;
+}
+
+.nav-item,
 .manage-store-button {
-  min-width: 84px;
-  height: 38px;
-  padding: 0 14px;
-  border: 1px solid #635bff;
-  border-radius: 7px;
-  background: #fff;
-  color: #635bff;
-  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 53px;
+  height: 56px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #666b78;
+  font: inherit;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
 }
 
+.nav-item span {
+  white-space: pre-line;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.nav-item svg,
+.manage-store-button svg {
+  font-size: 20px;
+}
+
+.nav-item:hover,
 .manage-store-button:hover {
-  background: #f7f6ff;
+  background: #f7f7fa;
+  color: #333744;
+}
+
+.nav-item.active {
+  background: #f0efff;
+  color: #635bff;
+}
+
+.mobile-manager-label {
+  display: none;
 }
 
 .manage-store-button:disabled {
@@ -245,127 +294,81 @@ const emit = defineEmits(['open-login', 'open-settings'])
   box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-
-  padding-left: 20px;
-
-  border: 0;
-  background: transparent;
-
-  cursor: pointer;
-}
-
-.brand-logo {
-  display: block;
-  width: auto;
-  height: 38px;
-}
-
-.brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 30px;
-  height: 30px;
-
-  color: #635bff;
-  font-size: 26px;
-  font-weight: 800;
-}
-
-.brand-name {
-  color: #111827;
-
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.4px;
-}
-
-.main-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  height: 100%;
-}
-
-.nav-item {
-  position: relative;
-
-  height: 72px;
-  padding: 0 18px;
-
-  border: 0;
-  background: transparent;
-
-  color: #333;
-
-  font-size: 20px;
-  font-weight: 700;
-
-  cursor: pointer;
-}
-
-.nav-item:hover {
-  color: #111;
-}
-
-.nav-item.active {
-  color: #635bff;
-}
-
 @media (max-width: 768px) {
   .app-header {
     position: absolute;
-    top: 0;
-    left: 0;
+    inset: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
     height: var(--mobile-header-height);
     padding: env(safe-area-inset-top, 0px) max(12px, env(safe-area-inset-right)) 0
       max(12px, env(safe-area-inset-left));
-    gap: 8px;
+    border-right: 0;
+    border-bottom: 1px solid #e9e9e9;
+    box-shadow: none;
   }
+
   .header-left {
+    flex-direction: row;
     min-width: 0;
   }
+
   .header-actions {
+    flex-direction: row;
     gap: 6px;
+    margin-top: 0;
+    margin-left: auto;
   }
-  .manage-store-button {
-    min-width: 74px;
-    padding: 0 9px;
-    font-size: 12px;
-  }
-  .brand {
-    gap: 4px;
-  }
-  .brand-logo {
-    height: 36px;
-  }
-  .brand-name {
-    font-size: 16px;
-  }
-  .brand-mark {
-    width: 24px;
-    font-size: 22px;
-  }
+
   .main-nav {
     display: none;
   }
-  :deep(.header-login-area) {
-    min-width: 0;
+
+  .brand {
+    width: auto;
+    height: auto;
+    padding: 0;
   }
+
+  .brand-logo {
+    height: 36px;
+  }
+
+  .manage-store-button {
+    flex-direction: row;
+    width: auto;
+    min-width: 74px;
+    height: 38px;
+    padding: 0 9px;
+    border: 1px solid #635bff;
+    border-radius: 7px;
+    color: #635bff;
+    font-size: 12px;
+  }
+
+  .manage-store-button svg {
+    display: none;
+  }
+
+  .desktop-manager-label {
+    display: none;
+  }
+
+  .mobile-manager-label {
+    display: inline;
+  }
+
+  :deep(.header-login-area),
   :deep(.user-area) {
     min-width: 0;
   }
+
   :deep(.login-button) {
     max-width: 115px;
     padding: 0 10px;
-    font-size: 12px;
     overflow: hidden;
+    font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
