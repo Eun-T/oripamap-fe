@@ -33,7 +33,7 @@
       </BaseModal>
       </Transition>
 
-      <PlaceSidebar :place="placeStore.selectedPlace" @close="placeStore.clearSelectedPlace" />
+      <PlaceSidebar :place="placeStore.selectedPlace" @close="closePlace" />
 
       <div v-if="mapError" class="map-error">지도를 불러오지 못했습니다.</div>
 
@@ -50,6 +50,7 @@
 
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import BottomNavigation from '@/components/common/BottomNavigation.vue'
 import { loadNaverMapScript } from '@/utils/naverMapLoader'
 import PlaceSidebar from '@/components/PlaceSidebar.vue'
@@ -75,6 +76,9 @@ watch(authModal, (value) => {
 
 const placeStore = usePlaceStore()
 const authStore = useAuthStore()
+const route = useRoute()
+const router = useRouter()
+const placesReady = ref(false)
 const isSettingsOpen = ref(false)
 const activeMobileTab = computed(() => isSettingsOpen.value ? 'settings' :
   ({ ALL: 'map', ORIPA: 'oripa', POKEMON_VENDING: 'vending' })[placeStore.selectedType])
@@ -87,6 +91,22 @@ let map = null
 let mapIdleListener = null
 
 const markers = new Map()
+
+const openPlace = (place) => {
+  if (place?.publicId == null) return
+  router.push({ name: 'place', params: { publicId: place.publicId } })
+}
+
+const closePlace = () => router.push({ name: 'map' })
+
+const syncRouteSelection = (publicId) => {
+  if (publicId == null) {
+    placeStore.clearSelectedPlace()
+    return Promise.resolve()
+  }
+
+  return placeStore.selectPlaceByPublicId(publicId)
+}
 
 const getMarkerIcon = (type, isSelected = false) => {
   if (type === 'POKEMON_VENDING') {
@@ -137,7 +157,7 @@ const createMarker = (place, position) => {
   const marker = new window.naver.maps.Marker(markerOptions)
 
   window.naver.maps.Event.addListener(marker, 'click', () => {
-    placeStore.selectPlace(place)
+    openPlace(place)
   })
 
   return marker
@@ -186,8 +206,18 @@ const syncVisibleMarkers = () => {
   })
 }
 
+const getPlacePosition = (place) => {
+  const latitude = Number(place?.latitude)
+  const longitude = Number(place?.longitude)
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  return new window.naver.maps.LatLng(latitude, longitude)
+}
+
 const initMap = () => {
-  const center = new window.naver.maps.LatLng(37.5572, 126.9245)
+  const center =
+    getPlacePosition(placeStore.selectedPlace) ||
+    new window.naver.maps.LatLng(37.5572, 126.9245)
 
   map = new window.naver.maps.Map('map', {
     center,
@@ -199,6 +229,13 @@ const initMap = () => {
 }
 
 watch(
+  () => route.params.publicId,
+  (publicId) => {
+    if (placesReady.value) syncRouteSelection(publicId)
+  },
+)
+
+watch(
   () => placeStore.selectedPlace,
   (place) => {
     syncVisibleMarkers()
@@ -207,7 +244,8 @@ watch(
       return
     }
 
-    const position = new window.naver.maps.LatLng(Number(place.latitude), Number(place.longitude))
+    const position = getPlacePosition(place)
+    if (!position) return
 
     map.morph(position, Math.max(map.getZoom(), 15))
   },
@@ -223,16 +261,8 @@ onMounted(async () => {
 
   try {
     await placeStore.fetchPlaces()
-
-    if (!placeStore.selectedPlace && !window.matchMedia('(max-width: 768px)').matches) {
-      const initialPlace = placeStore.places.find(
-        (place) => place.type === 'POKEMON_VENDING' && place.branchName?.trim() === '홍대점',
-      )
-
-      if (initialPlace) {
-        placeStore.selectPlace(initialPlace)
-      }
-    }
+    placesReady.value = true
+    await syncRouteSelection(route.params.publicId)
 
     await loadNaverMapScript()
 

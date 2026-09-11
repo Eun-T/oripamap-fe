@@ -3,7 +3,7 @@
   <aside v-if="!isMobile || place" class="place-sidebar" aria-label="장소 상세">
 
     <!-- 장소 선택했을 때만 -->
-    <div class="place-content">
+    <div ref="placeContent" class="place-content">
       <div v-if="displayedPlace" class="detail-body">
         <button type="button" class="image-back-button" aria-label="지도로 돌아가기" @click="returnToMap">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -32,7 +32,7 @@
 <script setup>
 import PokemonVendingDetail from './PokemonVendingDetail.vue'
 import OripaDetail from './OripaDetail.vue'
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 
 const props = defineProps({
   place: {
@@ -45,11 +45,21 @@ const emit = defineEmits(['close'])
 const returnToMap = () => emit('close')
 const mobileQuery = window.matchMedia('(max-width: 768px)')
 const isMobile = ref(mobileQuery.matches)
+const placeContent = ref(null)
 const previousPlace = shallowRef(props.place)
 const displayedPlace = computed(() => props.place || (isMobile.value ? previousPlace.value : null))
 watch(() => props.place, (place) => {
   if (place) previousPlace.value = place
 }, { flush: 'sync' })
+watch(
+  () => props.place?.id,
+  async (placeId, previousPlaceId) => {
+    if (placeId == null || String(placeId) === String(previousPlaceId)) return
+
+    await nextTick()
+    placeContent.value?.scrollTo({ top: 0, behavior: 'instant' })
+  },
+)
 const clearPreviousPlace = () => {
   if (!props.place) previousPlace.value = null
 }

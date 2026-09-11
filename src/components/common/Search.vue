@@ -39,6 +39,7 @@
 
 <script setup>
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {  faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
@@ -54,6 +55,7 @@ const searchContainer = ref(null)
 const searchInput = ref(null)
 
 const placeStore = usePlaceStore()
+const router = useRouter()
 
 let timer = null
 
@@ -180,7 +182,9 @@ const handleSearch = async () => {
 
 // 장소 선택
 const selectPlace = (place) => {
-  placeStore.selectPlace(place)
+  if (place?.publicId == null) return
+
+  router.push({ name: 'place', params: { publicId: place.publicId } })
 
   resetSearch()
 }

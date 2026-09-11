@@ -1,6 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getPlace, getPlaces, searchPlaces, updateOripaPlace } from '@/api/placeApi'
+import {
+  getPlace,
+  getPlaceByPublicId,
+  getPlaces,
+  searchPlaces,
+  updateOripaPlace,
+} from '@/api/placeApi'
 
 export const usePlaceStore = defineStore('place', () => {
   // API에서 받은 장소 목록
@@ -10,6 +16,9 @@ export const usePlaceStore = defineStore('place', () => {
   const selectedPlace = ref(null)
   const placeDetailCache = new Map()
   const pendingPlaceDetails = new Map()
+  const publicPlaceDetailCache = new Map()
+  const pendingPublicPlaceDetails = new Map()
+  let activeSelectionPublicId = null
 
   // 필터
   const selectedType = ref('ALL')
@@ -122,25 +131,62 @@ export const usePlaceStore = defineStore('place', () => {
     }
   }
 
-  // 마커 / 검색 결과 클릭
-  const selectPlace = async (place) => {
-    selectedPlace.value = place
+  // 공개 URL로 선택한 장소의 상세 데이터 조회
+  const getPublicPlaceDetail = async (publicId) => {
+    if (publicId == null) return null
 
-    if (place?.id == null) return
+    const cacheKey = String(publicId)
+    const listPlace = places.value.find((place) => String(place.publicId) === cacheKey)
+    const cachedPlace = publicPlaceDetailCache.get(cacheKey)
+    if (cachedPlace) return { ...listPlace, ...cachedPlace }
+
+    let detailRequest = pendingPublicPlaceDetails.get(cacheKey)
+
+    if (!detailRequest) {
+      detailRequest = getPlaceByPublicId(publicId)
+      pendingPublicPlaceDetails.set(cacheKey, detailRequest)
+    }
 
     try {
-      const detail = await getPlaceDetail(place.id)
-
-      if (String(selectedPlace.value?.id) === String(place.id)) {
-        selectedPlace.value = { ...place, ...detail }
+      const detail = await detailRequest
+      const mergedPlace = { ...listPlace, ...detail }
+      publicPlaceDetailCache.set(cacheKey, mergedPlace)
+      return mergedPlace
+    } finally {
+      if (pendingPublicPlaceDetails.get(cacheKey) === detailRequest) {
+        pendingPublicPlaceDetails.delete(cacheKey)
       }
+    }
+  }
+
+  const selectPlaceByPublicId = async (publicId) => {
+    if (publicId == null) {
+      clearSelectedPlace()
+      return null
+    }
+
+    const selectionPublicId = String(publicId)
+    activeSelectionPublicId = selectionPublicId
+    selectedPlace.value =
+      places.value.find((place) => String(place.publicId) === selectionPublicId) || null
+
+    try {
+      const detail = await getPublicPlaceDetail(publicId)
+
+      if (activeSelectionPublicId === selectionPublicId) {
+        selectedPlace.value = detail
+      }
+
+      return detail
     } catch (err) {
-      console.error('장소 상세 조회 실패:', err)
+      console.error('Failed to load place detail:', err)
+      return null
     }
   }
 
   // 상세 패널 닫기
   const clearSelectedPlace = () => {
+    activeSelectionPublicId = null
     selectedPlace.value = null
   }
 
@@ -165,6 +211,9 @@ export const usePlaceStore = defineStore('place', () => {
     }
 
     placeDetailCache.set(String(placeId), updatedPlace)
+    if (updatedPlace?.publicId != null) {
+      publicPlaceDetailCache.set(String(updatedPlace.publicId), updatedPlace)
+    }
     places.value = places.value.map((place) =>
       String(place.id) === String(placeId) ? { ...place, ...updatedPlace } : place,
     )
@@ -198,7 +247,8 @@ export const usePlaceStore = defineStore('place', () => {
 
     setPlaces,
     getPlaceDetail,
-    selectPlace,
+    getPublicPlaceDetail,
+    selectPlaceByPublicId,
     saveOripaPlace,
     clearSelectedPlace,
     setType,

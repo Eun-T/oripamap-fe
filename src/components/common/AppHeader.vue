@@ -47,7 +47,10 @@
       >
         {{ managerLoading ? '불러오는 중...' : '매장 관리' }}
       </button>
-      <LoginButton @open-login="emit('open-login')" />
+      <LoginButton
+        @open-login="emit('open-login')"
+        @open-settings="emit('open-settings')"
+      />
     </div>
 
     <OripaEditModal
@@ -63,6 +66,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { usePlaceStore } from '@/stores/placeStore'
 import { useAuthStore } from '@/stores/authStore'
 import { userHasRole } from '@/utils/userRole'
@@ -71,6 +75,7 @@ import OripaEditModal from '@/components/OripaEditModal.vue'
 
 const placeStore = usePlaceStore()
 const authStore = useAuthStore()
+const router = useRouter()
 
 const isOwner = computed(
   () => userHasRole(authStore.user, 'OWNER') && !userHasRole(authStore.user, 'ADMIN'),
@@ -147,6 +152,7 @@ const activeMenu = computed(
 
 const goHome = () => {
   placeStore.setType('ALL')
+  router.push('/map')
 }
 
 const selectMenu = (menu) => {
@@ -161,9 +167,11 @@ const selectMenu = (menu) => {
   if (menu === 'vending') {
     placeStore.setType('POKEMON_VENDING')
   }
+
+  router.push('/map')
 }
 
-const emit = defineEmits(['open-login'])
+const emit = defineEmits(['open-login', 'open-settings'])
 </script>
 
 <style scoped>

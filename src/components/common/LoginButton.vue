@@ -5,12 +5,32 @@
     </button>
 
     <div v-else ref="userArea" class="user-area">
-      <button type="button" class="login-button" @click="isMenuOpen = !isMenuOpen">
+      <button
+        type="button"
+        class="login-button"
+        aria-haspopup="menu"
+        :aria-expanded="isMenuOpen"
+        @click="isMenuOpen = !isMenuOpen"
+      >
         {{ authStore.user.nickname }} 님 ▾
       </button>
 
-      <div v-if="isMenuOpen" class="user-menu">
-        <button type="button" class="menu-item" @click="handleLogout">로그아웃</button>
+      <div v-if="isMenuOpen" class="user-menu" role="menu">
+        <button type="button" class="menu-item" role="menuitem" @click="selectMenu('profile')">
+          내 정보
+        </button>
+        <button type="button" class="menu-item" role="menuitem" @click="selectMenu('settings')">
+          설정
+        </button>
+        <div class="menu-divider" aria-hidden="true"></div>
+        <button
+          type="button"
+          class="menu-item logout-item"
+          role="menuitem"
+          @click="handleLogout"
+        >
+          로그아웃
+        </button>
       </div>
     </div>
     <div v-if="logoutMessage" class="toast">
@@ -21,14 +41,28 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 
 const authStore = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 
-const emit = defineEmits(['open-login'])
+const emit = defineEmits(['open-login', 'open-settings'])
 
 const isMenuOpen = ref(false)
 const userArea = ref(null)
+
+const selectMenu = (menu) => {
+  isMenuOpen.value = false
+
+  if (menu === 'profile') {
+    router.push('/my')
+    return
+  }
+
+  emit('open-settings')
+}
 
 const handleOutsideClick = (event) => {
   if (isMenuOpen.value && !userArea.value?.contains(event.target)) {
@@ -49,6 +83,10 @@ const logoutMessage = ref('')
 const handleLogout = async () => {
   await authStore.logout()
   isMenuOpen.value = false
+
+  if (route.meta.requiresAuth) {
+    await router.push('/map')
+  }
 
   logoutMessage.value = '로그아웃되었습니다.'
 
@@ -96,7 +134,7 @@ const handleLogout = async () => {
   top: 50px;
   right: 0;
 
-  width: 110px;
+  width: 140px;
 
   padding: 6px;
 
@@ -131,6 +169,17 @@ const handleLogout = async () => {
 .menu-item:hover {
   background: #f5f5f5;
 }
+
+.menu-divider {
+  height: 1px;
+  margin: 6px 4px;
+  background: #e5e5e5;
+}
+
+.logout-item {
+  color: #dc2626;
+}
+
 .toast {
   position: fixed;
   right: 24px;

@@ -134,7 +134,12 @@
       <h3 class="introduction-header">
         소개글
       </h3>
-      <OripaIntroduction v-if="oripaPlace" :place-name="place.name" :oripa-place="oripaPlace" />
+      <OripaIntroduction
+        v-if="oripaPlace"
+        :place-name="place.name"
+        :oripa-place="oripaPlace"
+        :tags="place.tags"
+      />
 
       <!-- =========================
            댓글

@@ -48,6 +48,16 @@
       {{ oripaPlace.summary }}
     </h3>
 
+    <div v-if="displayTags.length" class="introduction-tags" aria-label="매장 태그">
+      <span
+        v-for="(tag, index) in displayTags"
+        :key="tag.id ?? `${tag.name}-${index}`"
+        class="introduction-tag"
+      >
+        {{ tag.name }}
+      </span>
+    </div>
+
     <p v-if="oripaPlace.introduction" class="introduction-text">
       {{ oripaPlace.introduction }}
     </p>
@@ -80,7 +90,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faLink } from '@fortawesome/free-solid-svg-icons'
 
 import {
-  faInstagram,
+  faSquareInstagram,
   faFacebook,
   faThreads,
   faYoutube,
@@ -95,6 +105,10 @@ const props = defineProps({
   oripaPlace: {
     type: Object,
     required: true,
+  },
+  tags: {
+    type: Array,
+    default: () => [],
   },
 })
 
@@ -120,6 +134,8 @@ const socialLinks = computed(() =>
   ),
 )
 
+const displayTags = computed(() => props.tags.filter((tag) => tag?.name))
+
 const currentOripaImageIndex = ref(0)
 
 const currentOripaImage = computed(
@@ -134,7 +150,7 @@ const normalizePlatform = (platform) =>
 const getSocialPlatformLabel = (platform) => {
   const normalizedPlatform = normalizePlatform(platform)
 
-  if (normalizedPlatform === 'INSTAGRAM') return faInstagram
+  if (normalizedPlatform === 'INSTAGRAM') return faSquareInstagram
   if (normalizedPlatform === 'FACEBOOK') return faFacebook
   if (normalizedPlatform === 'THREADS') return faThreads
   if (normalizedPlatform === 'YOUTUBE') return faYoutube
@@ -147,7 +163,7 @@ const getSocialIcon = (platform) => {
   const normalizedPlatform = normalizePlatform(platform)
 
   if (normalizedPlatform === 'INSTAGRAM') {
-    return faInstagram
+    return faSquareInstagram
   }
 
   if (normalizedPlatform === 'FACEBOOK') {
@@ -212,6 +228,23 @@ watch(oripaImages, () => {
   font-weight: 800;
   line-height: 1.45;
   word-break: keep-all;
+}
+
+.introduction-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 0;
+}
+
+.introduction-tag {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f0efff;
+  color: #635bff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .oripa-carousel {

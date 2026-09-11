@@ -33,10 +33,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const updateNickname = async (nickname) => {
+    const { data } = await api.patch('/api/users/me', { nickname })
+    user.value = { ...user.value, ...data }
+    return user.value
+  }
+
   return {
     user,
     loading,
     fetchMe,
+    updateNickname,
     logout,
   }
 })

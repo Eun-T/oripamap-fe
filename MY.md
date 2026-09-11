@@ -226,373 +226,114 @@ WebP 변환에 실패한 경우에만 Dynamic Import한다.
 const url = URL.createObjectURL(file)
 
 
-------------------------------------------------------------
-<template>
-  <section class="oripa-introduction" aria-label="매장 소개">
-    <div v-if="oripaImages.length" class="oripa-carousel">
-      <Transition name="oripa-image-fade">
-        <img
-          :key="currentOripaImage.id ?? currentOripaImage.imageUrl"
-          class="oripa-carousel-image"
-          :src="currentOripaImage.imageUrl"
-          :alt="`${placeName} 소개 이미지 ${currentOripaImageIndex + 1}`"
-        />
-      </Transition>
+------------------------------------------------------
+6. 장소 상세정보 클라이언트 사이드 캐시
+------------------------------------------------------
 
-      <template v-if="oripaImages.length > 1">
-        <button
-          type="button"
-          class="carousel-button carousel-button-prev"
-          aria-label="이전 이미지"
-          @click="showPreviousImage"
-        >
-          <span aria-hidden="true">‹</span>
-        </button>
+장소 상세정보(`/api/places/{id}`)는 프론트의 `Map`을 이용해 메모리에 캐싱한다.
 
-        <button
-          type="button"
-          class="carousel-button carousel-button-next"
-          aria-label="다음 이미지"
-          @click="showNextImage"
-        >
-          <span aria-hidden="true">›</span>
-        </button>
+js
+const placeDetailCache = new Map()
+클라이언트 사이드 메모리 캐시(Client-side In-memory Cache)
+저장 위치: 사용자 브라우저 RAM
+같은 장소 재조회 시 API 호출 없이 캐시 사용
+새로고침하면 캐시 삭제
+pendingPlaceDetails로 동일 API 중복 요청 방지
+현재 별도의 캐시 만료시간(TTL)은 없음
+주의사항
 
-        <div class="carousel-pagination" aria-label="소개 이미지 선택">
-          <button
-            v-for="(image, index) in oripaImages"
-            :key="image.id ?? image.imageUrl"
-            type="button"
-            class="carousel-dot"
-            :class="{ active: currentOripaImageIndex === index }"
-            :aria-label="`${index + 1}번째 이미지 보기`"
-            :aria-current="currentOripaImageIndex === index ? 'true' : undefined"
-            @click="currentOripaImageIndex = index"
-          ></button>
-        </div>
-      </template>
-    </div>
+S3 Presigned URL은 만료시간이 있으므로, 상세 캐시는 남아 있지만 이미지 URL만 만료될 수 있다.
 
-    <div class="introduction-container">
-      <h3 v-if="oripaPlace.summary" class="introduction-summary">
-        {{ oripaPlace.summary }}
-      </h3>
+추후 필요하면 캐시 TTL을 적용하고 Presigned URL 만료시간도 함께 고려한다.
 
-      <p v-if="oripaPlace.introduction" class="introduction-text">
-        {{ oripaPlace.introduction }}
-      </p>
-    </div>
+------------------------------------------------------
+7. 장소 상세 URL 라우팅
+------------------------------------------------------
 
-    <div v-if="socialLinks.length" class="dividers"></div>
+### 현재 구조
 
-    <!-- <h3 class="social-head">공식 채널</h3> -->
-    <!-- <h4 class="social-summary">더 많은 소식과 새로운 정보를 확인해 주세요!</h4> -->
-    <nav v-if="socialLinks.length" class="social-links" aria-label="소셜 링크">
-      <a
-        v-for="(link, index) in socialLinks"
-        :key="`${link.platform}-${link.url}-${index}`"
-        class="social-link"
-        :href="link.url"
-        target="_blank"
-        rel="noopener noreferrer"
-        :aria-label="`${getSocialPlatformLabel(link.platform)} 새 탭에서 열기`"
-        :title="getSocialPlatformLabel(link.platform)"
-      >
-        <FontAwesomeIcon :icon="getSocialIcon(link.platform)" aria-hidden="true" />
-      </a>
-    </nav>
-  </section>
-</template>
+현재 장소 마커를 클릭해도 URL은 항상 동일하다.
 
-<script setup>
-import { computed, ref, watch } from 'vue'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+```text
+/map
+```
 
-import { faLink } from '@fortawesome/free-solid-svg-icons'
+선택된 장소는 Pinia의 `selectedPlace` 같은 클라이언트 상태로만 관리한다.
 
-import {
-  faInstagram,
-  faFacebook,
-  faThreads,
-  faYoutube,
-  faXTwitter,
-} from '@fortawesome/free-brands-svg-icons'
+```text
+/map
+→ 마커 클릭
+→ selectedPlace = 17
+→ URL은 /map 그대로
+```
 
-const props = defineProps({
-  placeName: {
-    type: String,
-    default: '',
-  },
-  oripaPlace: {
-    type: Object,
-    required: true,
-  },
-})
+### 개선 구조
 
-const oripaImages = computed(() =>
-  (Array.isArray(props.oripaPlace.images) ? props.oripaPlace.images : [])
-    .filter((image) => image?.imageUrl)
-    .map((image, index) => ({
-      ...image,
-      originalIndex: index,
-    }))
-    .sort((a, b) => {
-      const aOrder = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : Infinity
+장소를 선택하면 URL에도 장소 ID를 반영한다.
 
-      const bOrder = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : Infinity
+```text
+/map
+→ /place/17
+```
 
-      return aOrder - bOrder || a.originalIndex - b.originalIndex
-    }),
-)
+화면 자체는 기존처럼 `지도 + 장소 상세 사이드바`를 유지하고,
+URL만 현재 선택된 장소를 표현하도록 한다.
 
-const socialLinks = computed(() =>
-  (Array.isArray(props.oripaPlace.socialLinks) ? props.oripaPlace.socialLinks : []).filter(
-    (link) => link?.url,
-  ),
-)
+장소 상세을 닫으면 다시:
 
-const currentOripaImageIndex = ref(0)
+```text
+/place/17
+→ /map
+```
 
-const currentOripaImage = computed(
-  () => oripaImages.value[currentOripaImageIndex.value] || oripaImages.value[0],
-)
+### 장점
 
-const normalizePlatform = (platform) =>
-  String(platform || '')
-    .trim()
-    .toUpperCase()
+- 장소 상세 URL을 카카오톡/SNS 등에 바로 공유 가능
+- 새로고침해도 해당 장소 상세 복원 가능
+- 브라우저 뒤로가기/앞으로가기 자연스럽게 동작
+- 장소별 새 탭 열기 가능
+- Capacitor 앱 딥링크 구현의 기반
+- 장소마다 고유 URL이 생겨 향후 SEO에 유리
+- GA 등에서 장소별 페이지 조회 분석이 쉬워짐
+- 삭제되거나 존재하지 않는 장소 URL의 에러 처리가 명확해짐
+- Router와 Pinia의 역할을 명확하게 분리 가능
 
-const getSocialPlatformLabel = (platform) => {
-  const normalizedPlatform = normalizePlatform(platform)
+### 역할 분리
 
-  if (normalizedPlatform === 'INSTAGRAM') return faInstagram
-  if (normalizedPlatform === 'FACEBOOK') return faFacebook
-  if (normalizedPlatform === 'THREADS') return faThreads
-  if (normalizedPlatform === 'YOUTUBE') return faYoutube
-  if (normalizedPlatform === 'X' || normalizedPlatform === 'TWITTER') return faXTwitter
+```text
+Router
+→ 현재 어떤 장소를 보고 있는지 관리
+→ /place/:id
 
-  return faLink
-}
+Pinia
+→ 장소 데이터 및 상세 캐시 관리
 
-const getSocialIcon = (platform) => {
-  const normalizedPlatform = normalizePlatform(platform)
+Component
+→ 지도와 장소 상세 UI 표시
+```
 
-  if (normalizedPlatform === 'INSTAGRAM') {
-    return faInstagram
-  }
+### 오맵 적용 예시
 
-  if (normalizedPlatform === 'FACEBOOK') {
-    return faFacebook
-  }
+```text
+/map
+→ 지도 기본 화면
 
-  if (normalizedPlatform === 'THREADS') {
-    return faThreads
-  }
+/place/17
+→ 17번 장소 선택 + 기존 상세 사이드바 표시
+```
 
-  if (normalizedPlatform === 'YOUTUBE') {
-    return faYoutube
-  }
+`/place/:id`로 직접 접속하면:
 
-  if (normalizedPlatform === 'X' || normalizedPlatform === 'TWITTER') {
-    return faXTwitter
-  }
+1. URL에서 placeId 확인
+2. Pinia 상세 캐시 확인
+3. 캐시에 있으면 재사용
+4. 없으면 `GET /api/places/{id}` 호출
+5. 기존 장소 상세 사이드바 표시
 
-  return faLink
-}
+### 결론
 
-const showPreviousImage = () => {
-  currentOripaImageIndex.value =
-    (currentOripaImageIndex.value - 1 + oripaImages.value.length) % oripaImages.value.length
-}
+오맵처럼 `지도 → 마커 선택 → 장소 상세`이 핵심인 서비스에서는
+장소 선택 상태를 Pinia에만 저장하기보다 URL에도 반영하는 것이 좋다.
 
-const showNextImage = () => {
-  currentOripaImageIndex.value = (currentOripaImageIndex.value + 1) % oripaImages.value.length
-}
-
-watch(oripaImages, () => {
-  currentOripaImageIndex.value = 0
-})
-</script>
-
-<style scoped>
-.oripa-introduction {
-  margin-top: 18px;
-  /* padding: 0 18px; */
-  overflow: hidden;
-  /* border: 1px solid #e5e7eb; */
-  /* border-radius: 10px; */
-  background: #fff;
-}
-
-.introduction-container {
-    position: relative;
-  padding: 28px 22px 24px;
-
-  background: #faf7f0;
-  border-radius: 20px;
-
-  box-shadow:
-    0 6px 20px rgb(0 0 0 / 7%);
-
-  border: 1px solid rgb(0 0 0 / 2%);
-}
-
-.introduction-summary {
-  margin: 20px 0 0;
-  color: #292929;
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 1.45;
-  word-break: keep-all;
-}
-
-.oripa-carousel {
-  position: relative;
-  height: 220px;
-  /* margin: 0 -20px 20px; */
-  overflow: hidden;
-  background: #f3f4f6;
-  box-shadow: 0 3px 10px rgb(0 0 0 / 6%);
-}
-
-.oripa-carousel-image {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.oripa-image-fade-enter-active,
-.oripa-image-fade-leave-active {
-  transition: opacity 0.25s ease;
-}
-
-.oripa-image-fade-enter-from,
-.oripa-image-fade-leave-to {
-  opacity: 0;
-}
-
-.carousel-button {
-  position: absolute;
-  top: 50%;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  padding: 0 0 3px;
-  transform: translateY(-50%);
-  border: none;
-  border-radius: 50%;
-  background: rgb(0 0 0 / 42%);
-  color: #fff;
-  font-size: 28px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.carousel-button-prev {
-  left: 10px;
-}
-
-.carousel-button-next {
-  right: 10px;
-}
-
-.carousel-pagination {
-  position: absolute;
-  right: 0;
-  bottom: 10px;
-  left: 0;
-  z-index: 2;
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-}
-
-.carousel-dot {
-  width: 7px;
-  height: 7px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 58%);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
-  cursor: pointer;
-}
-
-.carousel-dot.active {
-  width: 18px;
-  border-radius: 999px;
-  background: #fff;
-}
-
-.introduction-text {
-  margin: 12px 0 15px;
-  color: #555;
-  font-size: 14px;
-  line-height: 1.75;
-  white-space: pre-wrap;
-  word-break: keep-all;
-  letter-spacing: -0.2px;
-  overflow-wrap: anywhere;
-}
-
-.dividers {
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.social-summary {
-  margin: 15px 0 4px;
-  color: #292929;
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 1.45;
-  word-break: keep-all;
-}
-
-.social-head {
-  margin: 15px 0 4px;
-  color: #8b8b8b;
-  font-size: 12px;
-  line-height: 1.5;
-  letter-spacing: -0.2px;
-}
-
-.social-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
-  margin: 15px 0 0;
-}
-
-.social-link {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid #dedcf8;
-  border-radius: 12px;
-  background: #f7f6ff;
-  color: #635bff;
-  font-size: 17px;
-  text-decoration: none;
-  transition:
-    color 0.15s ease,
-    background-color 0.15s ease;
-}
-
-.social-link:hover {
-  background: #635bff;
-  color: #fff;
-}
-
-.social-link svg {
-  width: 18px;
-  height: 18px;
-}
-</style>
--------------------------------------------------------
+새로운 상세 페이지를 만드는 개념이 아니라,
+**현재 보고 있는 장소를 URL로도 표현하도록 만드는 것**이다.

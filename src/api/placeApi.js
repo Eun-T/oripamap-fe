@@ -18,6 +18,14 @@ export const getPlace = async (id) => {
 }
 
 /**
+ * GET /api/places/public/{publicId}
+ */
+export const getPlaceByPublicId = async (publicId) => {
+  const response = await api.get(`/api/places/public/${encodeURIComponent(publicId)}`)
+  return response.data
+}
+
+/**
  * ORIPA 매장 상세 수정
  * 기존 이미지는 data.images의 id로, 신규 이미지는 fileIndex와 files part로 전달합니다.
  */
