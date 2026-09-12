@@ -37,7 +37,7 @@
       </button>
       <LoginButton
         compact
-        :active="route.path === '/my'"
+        :active="route.path.startsWith('/my')"
         @open-login="emit('open-login')"
         @open-settings="emit('open-settings')"
       />
@@ -145,7 +145,7 @@ watch(
 onBeforeUnmount(() => clearTimeout(managerErrorTimer))
 
 const activeMenu = computed(() => {
-  if (route.path === '/my') return 'profile'
+  if (route.path.startsWith('/my')) return 'profile'
   return { ALL: 'map', ORIPA: 'oripa', POKEMON_VENDING: 'vending' }[placeStore.selectedType]
 })
 

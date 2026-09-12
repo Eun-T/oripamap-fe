@@ -1,12 +1,39 @@
 <template>
-  <div class="page">
-    <AppHeader class="map-app-header" @open-login="authModal = 'login'" />
+  <div class="page" :class="{ 'my-route': isMyRoute }">
+    <AppHeader
+      class="map-app-header"
+      @open-login="authModal = 'login'"
+      @open-settings="openSettings"
+    />
 
     <div class="map-page">
-      <div class="map-search-header">
-        <button type="button" class="mobile-filter-button" aria-label="장소 유형 필터 열기">
-          <SlidersHorizontal aria-hidden="true" />
-        </button>
+      <div v-if="!isMyRoute" class="map-search-header">
+        <div ref="mobileFilter" class="mobile-filter">
+          <button
+            type="button"
+            class="mobile-filter-button"
+            aria-haspopup="menu"
+            :aria-expanded="isMobileFilterOpen"
+            :aria-label="'장소 유형 필터: ' + mobileFilterLabel"
+            @click="isMobileFilterOpen = !isMobileFilterOpen"
+          >
+            <SlidersHorizontal aria-hidden="true" />
+            <span>{{ mobileFilterLabel }}</span>
+          </button>
+          <div v-if="isMobileFilterOpen" class="mobile-filter-menu" role="menu">
+            <button
+              v-for="option in mobileFilterOptions"
+              :key="option.type"
+              type="button"
+              role="menuitemradio"
+              :aria-checked="placeStore.selectedType === option.type"
+              :class="{ active: placeStore.selectedType === option.type }"
+              @click="selectMobileFilter(option.type)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
         <Search />
       </div>
 
@@ -36,28 +63,31 @@
         </BaseModal>
       </Transition>
 
-      <PlaceSidebar :place="placeStore.selectedPlace" @close="closePlace" />
+      <RouterView v-slot="{ Component }">
+        <component :is="Component" class="route-panel" />
+      </RouterView>
 
-      <div v-if="mapError" class="map-error">지도를 불러오지 못했습니다.</div>
-
-      <div v-else id="map"></div>
+      <MapView class="map-view" @ready="handleMapReady" />
     </div>
     <section v-if="isSettingsOpen" class="mobile-settings" aria-label="설정">
       <button type="button" @click="isSettingsOpen = false" aria-label="설정 닫기">닫기</button>
       <h2>설정</h2>
       <p>설정 기능을 준비 중입니다.</p>
     </section>
-    <BottomNavigation :active-tab="activeMobileTab" @select="selectMobileTab" />
+    <BottomNavigation
+      v-if="!isMyRoute"
+      :active-tab="activeMobileTab"
+      @select="selectMobileTab"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { SlidersHorizontal } from '@lucide/vue'
 import BottomNavigation from '@/components/common/BottomNavigation.vue'
-import { loadNaverMapScript } from '@/utils/naverMapLoader'
-import PlaceSidebar from '@/components/PlaceSidebar.vue'
+import MapView from '@/components/MapView.vue'
 import Search from '@/components/common/Search.vue'
 import BaseModal from '@/components/common/login/BaseModal.vue'
 import LoginForm from '@/components/common/login/LoginForm.vue'
@@ -68,7 +98,6 @@ import { useAuthStore } from '@/stores/authStore'
 import { usePlaceStore } from '@/stores/placeStore'
 import AppHeader from '@/components/common/AppHeader.vue'
 
-const mapError = ref(false)
 const isLoginOpen = ref(false)
 const isSignupOpen = ref(false)
 const authModal = ref(null)
@@ -88,27 +117,33 @@ const route = useRoute()
 const router = useRouter()
 const placesReady = ref(false)
 const isSettingsOpen = ref(false)
-const activeMobileTab = computed(() =>
-  isSettingsOpen.value
-    ? 'settings'
-    : { ALL: 'map', ORIPA: 'oripa', POKEMON_VENDING: 'vending' }[placeStore.selectedType],
+const isMobileFilterOpen = ref(false)
+const mobileFilter = ref(null)
+const isMyRoute = computed(() => route.path.startsWith('/my'))
+const mobileFilterOptions = [
+  { type: 'ALL', label: '전체' },
+  { type: 'ORIPA', label: '오리파' },
+  { type: 'POKEMON_VENDING', label: '자판기' },
+]
+const mobileFilterLabel = computed(
+  () =>
+    mobileFilterOptions.find((option) => option.type === placeStore.selectedType)?.label || '전체',
 )
+const activeMobileTab = computed(() => (isSettingsOpen.value ? 'settings' : 'map'))
 const selectMobileTab = (tab) => {
   isSettingsOpen.value = tab.id === 'settings'
-  if (tab.type) placeStore.setType(tab.type)
+}
+const selectMobileFilter = (type) => {
+  placeStore.setType(type)
+  isMobileFilterOpen.value = false
+}
+const closeMobileFilterOnOutsideClick = (event) => {
+  if (isMobileFilterOpen.value && !mobileFilter.value?.contains(event.target)) {
+    isMobileFilterOpen.value = false
+  }
 }
 
-let map = null
-let mapIdleListener = null
-
-const markers = new Map()
-
-const openPlace = (place) => {
-  if (place?.publicId == null) return
-  router.push({ name: 'place', params: { publicId: place.publicId } })
-}
-
-const closePlace = () => router.push({ name: 'map' })
+const openSettings = () => router.push({ name: 'my-settings' })
 
 const syncRouteSelection = (publicId) => {
   if (publicId == null) {
@@ -119,175 +154,24 @@ const syncRouteSelection = (publicId) => {
   return placeStore.selectPlaceByPublicId(publicId)
 }
 
-const getMarkerIcon = (type, isSelected = false) => {
-  if (type === 'POKEMON_VENDING') {
-    return isSelected
-      ? '/images/markers/vending-marker-use.png'
-      : '/images/markers/vending-marker.png'
-  }
-
-  if (type === 'ORIPA') {
-    return isSelected
-      ? '/images/markers/vending-marker-use.png'
-      : '/images/markers/oripa-marker.png'
-  }
-
-  return null
-}
-
-const getMarkerKey = (place) =>
-  place.id ?? `${place.type}:${place.latitude}:${place.longitude}:${place.name}`
-
-const getMarkerIconOptions = (place) => {
-  const isSelected =
-    placeStore.selectedPlace && getMarkerKey(placeStore.selectedPlace) === getMarkerKey(place)
-  const iconUrl = getMarkerIcon(place.type, isSelected)
-
-  if (!iconUrl) return null
-
-  return {
-    url: iconUrl,
-    size: new window.naver.maps.Size(40, 48),
-    scaledSize: new window.naver.maps.Size(40, 48),
-    anchor: new window.naver.maps.Point(20, 48),
-  }
-}
-
-const createMarker = (place, position) => {
-  const icon = getMarkerIconOptions(place)
-
-  const markerOptions = {
-    map,
-    position,
-  }
-
-  if (icon) {
-    markerOptions.icon = icon
-  }
-
-  const marker = new window.naver.maps.Marker(markerOptions)
-
-  window.naver.maps.Event.addListener(marker, 'click', () => {
-    openPlace(place)
-  })
-
-  return marker
-}
-
-const syncVisibleMarkers = () => {
-  if (!map) return
-
-  const bounds = map.getBounds()
-  const visibleMarkerKeys = new Set()
-
-  placeStore.places.forEach((place) => {
-    const latitude = Number(place.latitude)
-    const longitude = Number(place.longitude)
-
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return
-
-    const matchesFilter =
-      placeStore.selectedType === 'ALL' || place.type === placeStore.selectedType
-
-    if (!matchesFilter) return
-
-    const position = new window.naver.maps.LatLng(latitude, longitude)
-
-    if (!bounds.hasLatLng(position)) return
-
-    const markerKey = getMarkerKey(place)
-    visibleMarkerKeys.add(markerKey)
-
-    const cachedMarker = markers.get(markerKey)
-
-    if (cachedMarker) {
-      if (!cachedMarker.getMap()) cachedMarker.setMap(map)
-      const icon = getMarkerIconOptions(place)
-      if (icon) cachedMarker.setIcon(icon)
-      return
-    }
-
-    markers.set(markerKey, createMarker(place, position))
-  })
-
-  markers.forEach((marker, markerKey) => {
-    if (!visibleMarkerKeys.has(markerKey) && marker.getMap()) {
-      marker.setMap(null)
-    }
-  })
-}
-
-const getPlacePosition = (place) => {
-  const latitude = Number(place?.latitude)
-  const longitude = Number(place?.longitude)
-
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
-  return new window.naver.maps.LatLng(latitude, longitude)
-}
-
-const initMap = () => {
-  const center =
-    getPlacePosition(placeStore.selectedPlace) || new window.naver.maps.LatLng(37.5572, 126.9245)
-
-  map = new window.naver.maps.Map('map', {
-    center,
-    zoom: 15,
-  })
-
-  mapIdleListener = window.naver.maps.Event.addListener(map, 'idle', syncVisibleMarkers)
-  syncVisibleMarkers()
-}
-
 watch(
-  () => route.params.publicId,
-  (publicId) => {
-    if (placesReady.value) syncRouteSelection(publicId)
+  [() => route.name, () => route.params.publicId],
+  ([routeName, publicId]) => {
+    if (placesReady.value && ['map', 'place'].includes(routeName)) syncRouteSelection(publicId)
   },
 )
 
-watch(
-  () => placeStore.selectedPlace,
-  (place) => {
-    syncVisibleMarkers()
+const handleMapReady = async () => {
+  placesReady.value = true
+  if (['map', 'place'].includes(route.name)) await syncRouteSelection(route.params.publicId)
+}
 
-    if (!place || !map) {
-      return
-    }
-
-    const position = getPlacePosition(place)
-    if (!position) return
-
-    map.morph(position, Math.max(map.getZoom(), 15))
-  },
-)
-
-watch(() => placeStore.selectedType, syncVisibleMarkers)
-
-onMounted(async () => {
+onMounted(() => {
   authStore.fetchMe()
-
-  try {
-    await placeStore.fetchPlaces()
-    placesReady.value = true
-    await syncRouteSelection(route.params.publicId)
-
-    await loadNaverMapScript()
-
-    initMap()
-  } catch (error) {
-    console.error('네이버 지도 로딩 실패:', error)
-    mapError.value = true
-  }
+  document.addEventListener('click', closeMobileFilterOnOutsideClick)
 })
 
-onBeforeUnmount(() => {
-  if (mapIdleListener) {
-    window.naver.maps.Event.removeListener(mapIdleListener)
-  }
-
-  markers.forEach((marker) => marker.setMap(null))
-  markers.clear()
-})
+onBeforeUnmount(() => document.removeEventListener('click', closeMobileFilterOnOutsideClick))
 </script>
 
 <style scoped>
@@ -307,9 +191,17 @@ onBeforeUnmount(() => {
   height: 100vh;
 }
 
-#map {
+.map-view {
   flex: 1;
   min-width: 0;
+  height: 100%;
+}
+
+.route-panel {
+  position: relative;
+  z-index: 100;
+  flex: 0 0 390px;
+  width: 390px;
   height: 100%;
 }
 
@@ -332,13 +224,14 @@ onBeforeUnmount(() => {
 .mobile-settings {
   display: none;
 }
-.mobile-filter-button {
+.mobile-filter {
   display: none;
 }
 
 @media (max-width: 768px) {
   .page {
     --mobile-nav-height: calc(68px + env(safe-area-inset-bottom, 0px));
+    --mobile-header-height: calc(56px + env(safe-area-inset-top, 0px));
     position: relative;
     width: 100vw;
     height: 100dvh;
@@ -349,13 +242,29 @@ onBeforeUnmount(() => {
     width: 100%;
     height: calc(100dvh - var(--mobile-nav-height));
   }
-  #map {
+  .map-view {
     flex-basis: 100%;
     width: 100%;
   }
 
   .map-app-header {
     display: none;
+  }
+
+  .my-route .map-app-header {
+    display: flex;
+  }
+
+  .my-route .route-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 300;
+    width: 100%;
+    height: 100%;
+  }
+
+  .my-route .map-view {
+    visibility: hidden;
   }
 
   .map-search-header {
@@ -367,23 +276,68 @@ onBeforeUnmount(() => {
     padding: env(safe-area-inset-top, 0px) max(12px, env(safe-area-inset-right)) 0
       max(12px, env(safe-area-inset-left));
   }
+  .mobile-filter {
+    position: relative;
+    display: block;
+    flex: 0 0 68px;
+  }
   .mobile-filter-button {
-    display: grid;
-    place-items: center;
-    flex: 0 0 55px;
-    width: 55px;
-    height: 45px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 68px;
+    height: 48px;
     padding: 0;
     border: 1px solid #dedee8;
-    border-radius: 2px;
+    border-radius: 4px;
     background: #635bff;
     color: #fff;
     box-shadow: 0 3px 12px rgba(0, 0, 0, 0.16);
     cursor: pointer;
   }
   .mobile-filter-button svg {
-    width: 19px;
-    height: 19px;
+    width: 16px;
+    height: 16px;
+  }
+  .mobile-filter-button span {
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .mobile-filter-menu {
+    position: absolute;
+    top: 55px;
+    left: 0;
+    z-index: 500;
+    width: 124px;
+    padding: 6px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgb(0 0 0 / 14%);
+  }
+  .mobile-filter-menu button {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #374151;
+    font: inherit;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .mobile-filter-menu button:hover {
+    background: #f7f7f8;
+  }
+  .mobile-filter-menu button.active {
+    background: #f0efff;
+    color: #635bff;
+    font-weight: 700;
   }
   .map-search-header :deep(.search-container) {
     flex: 1;

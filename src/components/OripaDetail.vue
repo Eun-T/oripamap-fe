@@ -109,7 +109,7 @@
               {{ place.phone || '정보 없음' }}
             </strong>
           </div>
-          <div class="copy-control">
+          <!-- <div class="copy-control">
             <button
               type="button"
               class="copy-button"
@@ -129,7 +129,7 @@
                 {{ copyFeedback }}
               </span>
             </Transition>
-          </div>
+          </div> -->
         </div>
 
         <!-- <div class="summary-row">
@@ -839,12 +839,12 @@ const sharePlace = async () => {
   border: none;
   border-radius: 7px;
 
+  background: #635bff;
   /* background: #f3f4f6; */
-  /* background: #635bff; */
-  background: #F3F4F6;
+  /* background: #f0efff; */
 
-  /* color: #fff; */
-  color: #4B5563;
+  color: #fff;
+  /* color: #635bff; */
 
   font-size: 14px;
   font-weight: 700;

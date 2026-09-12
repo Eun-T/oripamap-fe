@@ -12,15 +12,13 @@
 
 <script setup>
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faMap, faStore, faMobileScreenButton, faGear } from '@fortawesome/free-solid-svg-icons'
+import { faMap, faGear } from '@fortawesome/free-solid-svg-icons'
 
 defineProps({ activeTab: { type: String, default: 'map' } })
 const emit = defineEmits(['select'])
 // 추가 탭은 이 목록에 등록하면 같은 너비로 배치됩니다.
 const tabs = [
-  { id: 'map', label: '지도', icon: faMap, type: 'ALL' },
-  { id: 'oripa', label: '오리파', icon: faStore, type: 'ORIPA' },
-  { id: 'vending', label: '자판기', icon: faMobileScreenButton, type: 'POKEMON_VENDING' },
+  { id: 'map', label: '지도', icon: faMap },
   { id: 'settings', label: '설정', icon: faGear },
 ]
 </script>

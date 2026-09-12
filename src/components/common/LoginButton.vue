@@ -143,7 +143,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick, 
   height: 52px;
   padding: 0 2px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 4px;
   color: #666b78;
   font-size: 10px;
 }

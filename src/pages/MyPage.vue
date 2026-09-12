@@ -1,7 +1,5 @@
 <template>
-  <div class="my-page">
-    <AppHeader />
-
+  <aside class="my-page" aria-label="내 정보">
     <main class="my-content">
       <h1>내 정보</h1>
 
@@ -11,6 +9,7 @@
         </div>
         <div class="profile-summary">
           <strong>{{ user?.nickname }}</strong>
+          <span class="profile-email">{{ user?.email || '-' }}</span>
           <span class="provider-badge">{{ providerLabel }}</span>
         </div>
       </section>
@@ -89,17 +88,21 @@
               <div class="place-info">
                 <div class="place-title-row">
                   <strong>{{ place.name }}</strong>
-                  <span>{{ placeTypeLabel(place.type) }}</span>
                 </div>
+                <span class="place-type-badge">{{ placeTypeLabel(place.type) }}</span>
                 <p>{{ place.address || '주소 정보 없음' }}</p>
               </div>
               <FontAwesomeIcon class="chevron" :icon="faChevronRight" aria-hidden="true" />
             </button>
           </li>
         </ul>
+        <RouterLink class="inquiry-menu-row" :to="{ name: 'my-inquiries' }">
+          <span>내 문의</span>
+          <FontAwesomeIcon class="menu-chevron" :icon="faChevronRight" aria-hidden="true" />
+        </RouterLink>
       </section>
     </main>
-  </div>
+  </aside>
 </template>
 
 <script setup>
@@ -107,7 +110,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faChevronRight, faHeart, faUser } from '@fortawesome/free-solid-svg-icons'
-import AppHeader from '@/components/common/AppHeader.vue'
 import { getFavorites } from '@/api/favoriteApi'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -203,39 +205,41 @@ onMounted(loadFavorites)
 <style scoped>
 .my-page {
   width: 100%;
-  height: 100dvh;
-  padding-left: 65px;
-  overflow-y: auto;
-  background: #f7f7fa;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
   color: #222;
 }
 
 .my-content {
-  width: min(760px, calc(100% - 40px));
-  margin: 0 auto;
-  padding: 48px 0 72px;
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+  overflow-y: auto;
+  background: #fff;
+  border-right: 1px solid #e5e7eb;
 }
 
 h1 {
-  margin: 0 0 28px;
-  font-size: 28px;
+  display: none;
 }
 .card {
-  border: 1px solid #e8e8ed;
-  border-radius: 16px;
+  border: 0;
+  border-radius: 0;
   background: #fff;
-  box-shadow: 0 4px 18px rgb(0 0 0 / 4%);
+  box-shadow: none;
 }
 .profile-card {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 28px;
+  gap: 14px;
+  padding: 4px 0 24px;
+  border-bottom: 1px solid #e5e7eb;
 }
 .profile-image {
-  flex: 0 0 76px;
-  width: 76px;
-  height: 76px;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
 }
 .default-profile {
@@ -243,45 +247,77 @@ h1 {
   place-items: center;
   background: #efefff;
   color: #635bff;
-  font-size: 32px;
+  font-size: 22px;
 }
 .profile-summary {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
 }
 .profile-summary strong {
-  max-width: 420px;
+  max-width: 100%;
   overflow: hidden;
-  font-size: 22px;
+  font-size: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-email {
+  max-width: 100%;
+  overflow: hidden;
+  color: #6b7280;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .provider-badge {
-  padding: 5px 9px;
-  border-radius: 999px;
+  padding: 3px 7px;
+  border-radius: 6px;
   background: #efefff;
   color: #635bff;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 700;
 }
 .content-section {
-  margin-top: 20px;
-  padding: 28px;
+  margin-top: 0;
+  padding: 24px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+.inquiry-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 60px;
+  margin-top: 16px;
+  padding: 0 10px;
+  border-top: 1px solid #eeeef2;
+  border-radius: 8px;
+  color: #262a33;
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.inquiry-menu-row:hover {
+  background: #f9fafb;
+}
+.menu-chevron {
+  color: #aaaab3;
+  font-size: 13px;
 }
 .content-section h2 {
-  margin: 0 0 20px;
-  font-size: 19px;
+  margin: 0 0 12px;
+  font-size: 16px;
 }
 .account-list {
   margin: 0;
 }
 .account-row {
   display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
+  grid-template-columns: 92px minmax(0, 1fr);
   align-items: center;
-  min-height: 58px;
+  min-height: 52px;
   border-top: 1px solid #eeeef2;
 }
 .account-row dt {
@@ -301,7 +337,7 @@ h1 {
 .edit-button,
 .save-button,
 .cancel-button {
-  padding: 7px 10px;
+  padding: 6px 8px;
   border: 1px solid #d8d6ff;
   border-radius: 7px;
   background: #f7f6ff;
@@ -325,10 +361,11 @@ h1 {
 }
 .nickname-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 7px;
 }
 .nickname-controls input {
-  flex: 1;
+  flex: 1 0 100%;
   min-width: 0;
   height: 36px;
   padding: 0 10px;
@@ -360,7 +397,7 @@ h1 {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 8px;
 }
 .section-heading h2 {
   margin: 0;
@@ -381,17 +418,18 @@ h1 {
 .favorite-item {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
-  padding: 16px 4px;
+  padding: 14px 10px;
   border: 0;
+  border-radius: 8px;
   background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
 }
-.favorite-item:hover .place-title-row strong {
-  color: #635bff;
+.favorite-item:hover {
+  background: #f9fafb;
 }
 .place-info {
   flex: 1;
@@ -407,10 +445,10 @@ h1 {
   font-size: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: color 0.2s;
 }
-.place-title-row span {
-  flex: none;
+.place-type-badge {
+  display: inline-block;
+  margin-top: 7px;
   padding: 3px 7px;
   border-radius: 5px;
   background: #f2f1ff;
@@ -419,7 +457,7 @@ h1 {
   font-weight: 700;
 }
 .place-info p {
-  margin: 7px 0 0;
+  margin: 6px 0 0;
   overflow: hidden;
   color: #777780;
   font-size: 13px;
@@ -428,6 +466,8 @@ h1 {
 }
 .chevron {
   flex: none;
+  align-self: flex-start;
+  margin-top: 4px;
   color: #aaaab3;
   font-size: 13px;
 }
@@ -476,48 +516,94 @@ h1 {
 @media (max-width: 768px) {
   .my-page {
     --mobile-header-height: calc(56px + env(safe-area-inset-top, 0px));
-    padding-left: 0;
+    height: 100dvh;
+    overflow-y: auto;
+    background: #f7f7fa;
   }
   .my-content {
     width: 100%;
+    height: auto;
     padding: calc(var(--mobile-header-height) + 28px) 16px 48px;
+    overflow-y: visible;
+    background: transparent;
+    border-right: 0;
   }
   h1 {
+    display: block;
     margin-bottom: 20px;
     font-size: 24px;
   }
   .card {
+    border: 1px solid #e8e8ed;
     border-radius: 12px;
+    box-shadow: 0 4px 18px rgb(0 0 0 / 4%);
   }
   .profile-card,
   .content-section {
     padding: 20px;
+  }
+  .profile-card {
+    gap: 20px;
+    border-bottom: 1px solid #e8e8ed;
+  }
+  .content-section {
+    margin-top: 20px;
+  }
+  .inquiry-menu-row {
+    min-height: 52px;
+    margin-top: 20px;
+    padding: 12px 4px 0;
+    border-radius: 0;
+  }
+  .content-section h2 {
+    margin-bottom: 20px;
+    font-size: 19px;
   }
   .profile-image {
     flex-basis: 64px;
     width: 64px;
     height: 64px;
   }
+  .default-profile {
+    font-size: 32px;
+  }
+  .profile-summary {
+    flex: initial;
+    flex-flow: row wrap;
+    align-items: center;
+    gap: 10px;
+  }
   .profile-summary strong {
     max-width: 160px;
     font-size: 19px;
   }
+  .profile-email {
+    display: none;
+  }
+  .provider-badge {
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+  }
   .account-row {
     grid-template-columns: 96px minmax(0, 1fr);
+    min-height: 58px;
   }
   .favorite-item {
     gap: 12px;
+    padding: 16px 4px;
+    border-radius: 0;
   }
   .place-title-row {
     align-items: flex-start;
     flex-direction: column;
     gap: 5px;
   }
-  .nickname-controls {
-    flex-wrap: wrap;
-  }
   .nickname-controls input {
     flex-basis: 100%;
+  }
+  .section-heading {
+    margin-bottom: 20px;
   }
 }
 </style>
