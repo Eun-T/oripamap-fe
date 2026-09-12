@@ -337,3 +337,71 @@ Component
 
 새로운 상세 페이지를 만드는 개념이 아니라,
 **현재 보고 있는 장소를 URL로도 표현하도록 만드는 것**이다.
+
+------------------------------------------------------
+8. Capacitor Android API 연결 트러블슈팅
+------------------------------------------------------
+
+### 문제
+웹에서는 정상 동작했지만 Capacitor 앱에서 지도가 뜨지 않고 아래 오류 발생.
+
+`places.forEach is not a function`
+
+Network 확인 결과 `/api/places`가 Spring이 아닌 `https://localhost/api/places`로 요청되고 있었고, JSON 대신 앱의 `index.html`이 반환됨.
+
+### 원인
+웹에서는 Vite Proxy가 `/api` 요청을 Nginx로 전달하지만, Capacitor 앱에는 Vite 개발 서버/Proxy가 없음.
+
+```text
+웹: /api → Vite Proxy → Nginx → Spring
+앱: /api → https://localhost ❌
+```
+
+### 해결
+Axios의 `baseURL`을 환경변수로 변경.
+
+```js
+baseURL: import.meta.env.VITE_API_BASE_URL || ''
+```
+
+Android Emulator에서 PC의 localhost는 `10.0.2.2`이므로 Capacitor 빌드 환경에 설정.
+
+```env
+VITE_API_BASE_URL=http://10.0.2.2
+```
+
+현재 Nginx가 80포트에서 요청을 받고 있어 `:8080`은 붙이지 않음.
+
+변경 후:
+
+```bash
+npm run android:sync
+```
+
+Android 빌드에서만 `.env.android`의 에뮬레이터 API 주소를 사용한다.
+
+최종적으로:
+
+```text
+Android Emulator → 10.0.2.2 → Nginx → Spring
+```
+
+※ 실제 배포 시 `10.0.2.2` 대신 AWS의 실제 API 주소를 사용한다.
+
+------------------------------------------------------
+9. Capacitor 안드로이드 스튜디오 설정
+------------------------------------------------------
+
+	"server": {
+		"androidScheme": "http"
+	}
+
+  android:usesCleartextTraffic="true"
+  android:networkSecurityConfig="@xml/network_security_config"
+  baseURL: import.meta.env.VITE_API_BASE_URL || '',
+  VITE_API_BASE_URL=http://10.0.2.2
+
+  <?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config> 이거는 정확히 기억이 안남

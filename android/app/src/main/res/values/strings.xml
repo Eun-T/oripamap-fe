@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Oripa Map</string>
+    <string name="title_activity_main">Oripa Map</string>
+    <string name="package_name">com.oripamap.app</string>
+    <string name="custom_url_scheme">com.oripamap.app</string>
+</resources>

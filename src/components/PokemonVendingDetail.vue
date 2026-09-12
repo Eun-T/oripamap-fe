@@ -203,31 +203,21 @@ const addressValue = ref(null)
 const locationValue = ref(null)
 const addressOverflowing = ref(false)
 const locationOverflowing = ref(false)
-const copyFeedback = ref('')
 let scrollContainer = null
 let scrollEndTimer = null
 let imageCarouselTimer = null
 let summaryResizeObserver = null
 let isProgrammaticScrolling = false
-let copyFeedbackTimer = null
 
 const copyAddress = async () => {
   const address = props.place?.address?.trim()
   if (!address) return
 
-  clearTimeout(copyFeedbackTimer)
-
   try {
     await copyToClipboard(address)
-    copyFeedback.value = '주소가 복사되었습니다.'
   } catch (error) {
     console.error('주소 복사 실패:', error)
-    copyFeedback.value = '주소를 복사하지 못했습니다.'
   }
-
-  copyFeedbackTimer = setTimeout(() => {
-    copyFeedback.value = ''
-  }, 1800)
 }
 
 const updateSummaryOverflow = () => {
@@ -401,7 +391,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearTimeout(scrollEndTimer)
-  clearTimeout(copyFeedbackTimer)
   stopImageCarousel()
   summaryResizeObserver?.disconnect()
   scrollContainer?.removeEventListener('scroll', updateActiveTab)
@@ -457,8 +446,6 @@ watch(
 watch(
   () => props.place?.id,
   async () => {
-    clearTimeout(copyFeedbackTimer)
-    copyFeedback.value = ''
     addressExpanded.value = false
     locationExpanded.value = false
     stopImageCarousel()
@@ -659,15 +646,11 @@ const sharePlace = async () => {
   grid-template-columns: 20px minmax(0, 1fr) auto;
 }
 
-.copy-control {
-  position: relative;
-  align-self: center;
-  justify-self: end;
-}
-
 .copy-button {
   display: grid;
   place-items: center;
+  align-self: start;
+  justify-self: end;
   width: 24px;
   height: 24px;
   padding: 0;
@@ -676,51 +659,10 @@ const sharePlace = async () => {
   cursor: pointer;
 }
 
-.copy-button:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
-
-.copy-button:focus-visible {
-  outline: 2px solid #635bff;
-  outline-offset: 2px;
-  border-radius: 3px;
-}
-
 .copy-button svg {
   width: 17px;
   height: 17px;
   color: rgb(142 148 163);
-}
-
-.copy-feedback {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 5;
-  width: max-content;
-  max-width: 190px;
-  padding: 7px 9px;
-  border-radius: 6px;
-  background: #24262d;
-  color: #fff;
-  font-size: 12px;
-  line-height: 1.3;
-  pointer-events: none;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 16%);
-}
-
-.copy-feedback-enter-active,
-.copy-feedback-leave-active {
-  transition:
-    opacity 0.15s ease,
-    transform 0.15s ease;
-}
-
-.copy-feedback-enter-from,
-.copy-feedback-leave-to {
-  opacity: 0;
-  transform: translateY(-3px);
 }
 
 .summary-icon {
@@ -744,7 +686,7 @@ const sharePlace = async () => {
 }
 
 .summary-row strong {
-  color: #404553;
+  color: #393c46;
   font-size: 14px;
   font-weight: 500;
   line-height: 1.4;
@@ -758,7 +700,7 @@ const sharePlace = async () => {
   overflow: hidden;
   border: none;
   background: none;
-  color: #444;
+  color: #393c46;
   font-family: inherit;
   font-size: 14px;
   font-weight: 500;

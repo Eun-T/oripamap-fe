@@ -840,8 +840,11 @@ const sharePlace = async () => {
   border-radius: 7px;
 
   /* background: #f3f4f6; */
-  background: #635bff;
-  color: #fff;
+  /* background: #635bff; */
+  background: #F3F4F6;
+
+  /* color: #fff; */
+  color: #4B5563;
 
   font-size: 14px;
   font-weight: 700;
